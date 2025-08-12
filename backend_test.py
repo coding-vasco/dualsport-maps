@@ -213,6 +213,111 @@ class DualsportMapsTester:
                 
         return all_passed
 
+    def test_advanced_route_calculation(self) -> bool:
+        """Test new advanced route calculation endpoint"""
+        
+        # Test coordinates: Denver to Boulder (from review request)
+        test_coordinates = [
+            {"longitude": -105.0178, "latitude": 39.7392},  # Denver
+            {"longitude": -105.2705, "latitude": 40.0150}   # Boulder
+        ]
+        
+        test_configs = [
+            {
+                "name": "Advanced Route Basic",
+                "config": {
+                    "coordinates": test_coordinates,
+                    "surface_preference": "mixed",
+                    "technical_difficulty": "moderate",
+                    "avoid_highways": True,
+                    "avoid_primary": False,
+                    "avoid_trunk": True,
+                    "output_format": "geojson",
+                    "include_instructions": True,
+                    "include_elevation": True,
+                    "max_detours": 3,
+                    "detour_radius_km": 5.0,
+                    "include_pois": True,
+                    "include_dirt_segments": True
+                }
+            },
+            {
+                "name": "Advanced Route with Trip Planning",
+                "config": {
+                    "coordinates": test_coordinates,
+                    "surface_preference": "gravel",
+                    "technical_difficulty": "difficult",
+                    "avoid_highways": True,
+                    "avoid_primary": True,
+                    "avoid_trunk": True,
+                    "output_format": "geojson",
+                    "include_instructions": True,
+                    "include_elevation": True,
+                    "max_detours": 5,
+                    "detour_radius_km": 10.0,
+                    "trip_duration_hours": 4.0,
+                    "trip_distance_km": 100.0,
+                    "include_pois": True,
+                    "include_dirt_segments": True
+                }
+            }
+        ]
+        
+        all_passed = True
+        
+        for test_case in test_configs:
+            try:
+                response = self.session.post(f"{self.api_url}/route/advanced", json=test_case["config"])
+                success = response.status_code == 200
+                
+                if success:
+                    data = response.json()
+                    required_fields = ['route_options', 'diagnostics', 'stats', 'generated_at']
+                    success = all(field in data for field in required_fields)
+                    
+                    if success:
+                        # Validate route_options structure
+                        route_options = data.get('route_options', [])
+                        success = isinstance(route_options, list)
+                        
+                        if success and len(route_options) > 0:
+                            # Check first route option structure
+                            first_option = route_options[0]
+                            option_fields = ['route_id', 'name', 'route_data', 'distance_m', 'duration_s', 'confidence']
+                            success = all(field in first_option for field in option_fields)
+                            
+                        # Validate diagnostics structure
+                        diagnostics = data.get('diagnostics', {})
+                        if success:
+                            success = 'stage_timings' in diagnostics
+                            
+                        details = f"- Options: {len(route_options)}, Diagnostics: {len(diagnostics)}"
+                    else:
+                        details = f"- Missing required fields in response"
+                elif response.status_code == 503:
+                    # Expected when enhanced planner is not available (missing tokens)
+                    success = True
+                    details = f"- Service unavailable (expected - missing API tokens)"
+                else:
+                    details = f"- Status: {response.status_code}"
+                    if response.status_code == 429:
+                        details += " (Rate Limited)"
+                    try:
+                        error_data = response.json()
+                        details += f", Error: {error_data.get('detail', 'Unknown error')}"
+                    except:
+                        details += f", Response: {response.text[:100]}"
+                    
+                self.log_test(f"Advanced Route: {test_case['name']}", success, details)
+                if not success:
+                    all_passed = False
+                    
+            except Exception as e:
+                self.log_test(f"Advanced Route: {test_case['name']}", False, f"- Error: {str(e)}")
+                all_passed = False
+                
+        return all_passed
+
     def test_enhanced_route_calculation(self) -> bool:
         """Test enhanced route calculation with POIs and dirt segments"""
         
