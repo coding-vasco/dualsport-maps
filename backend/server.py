@@ -706,6 +706,28 @@ async def log_route_request(request: Union[RouteRequest, EnhancedRouteRequest], 
     except Exception as e:
         logger.error(f"Failed to log route request: {e}")
 
+async def log_advanced_route_request(request: EnhancedAdvancedRouteRequest, planning_result: Dict[str, Any]):
+    """Background task to log advanced route requests"""
+    try:
+        log_data = {
+            "timestamp": datetime.utcnow(),
+            "coordinates_count": len(request.coordinates),
+            "surface_preference": request.surface_preference,
+            "technical_difficulty": request.technical_difficulty,
+            "max_detours": request.max_detours,
+            "detour_radius_km": request.detour_radius_km,
+            "trip_duration_hours": request.trip_duration_hours,
+            "trip_distance_km": request.trip_distance_km,
+            "include_pois": request.include_pois,
+            "include_dirt_segments": request.include_dirt_segments,
+            "route_options_count": len(planning_result.get('route_options', [])),
+            "stats": planning_result.get('stats', {})
+        }
+        
+        await db.advanced_route_logs.insert_one(log_data)
+    except Exception as e:
+        logger.error(f"Failed to log advanced route request: {e}")
+
 # Geocoding endpoints
 @api_router.post("/places/search", response_model=List[PlaceSearchResult])
 async def search_places_endpoint(request: PlaceSearchRequest):
