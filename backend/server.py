@@ -19,6 +19,9 @@ import json
 import asyncio
 import math
 
+# Import enhanced modules
+from modules.route_planner_enhanced import EnhancedRoutePlanner, RoutePlanRequest, RouteOption
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
