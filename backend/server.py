@@ -741,6 +741,97 @@ async def search_places_endpoint(request: PlaceSearchRequest):
         logger.error(f"Place search failed: {e}")
         raise HTTPException(status_code=500, detail="Place search failed")
 
+# Advanced Route Planning Endpoints (using enhanced modules)
+@api_router.post("/route/advanced", response_model=AdvancedRouteResponse)
+async def calculate_advanced_route(
+    request: EnhancedAdvancedRouteRequest,
+    background_tasks: BackgroundTasks
+):
+    """Calculate advanced dualsport route with comprehensive analysis"""
+    
+    # Rate limiting check
+    if not rate_limiter.can_make_request():
+        wait_time = rate_limiter.time_until_next_request()
+        if wait_time:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Try again in {wait_time:.0f} seconds."
+            )
+    
+    if not enhanced_planner:
+        raise HTTPException(
+            status_code=503,
+            detail="Enhanced route planner not available. Missing API tokens or initialization failed."
+        )
+    
+    try:
+        # Convert coordinates to tuple format
+        coords_tuples = [(coord.longitude, coord.latitude) for coord in request.coordinates]
+        
+        # Create RoutePlanRequest for enhanced planner
+        plan_request = RoutePlanRequest(
+            coordinates=coords_tuples,
+            surface_preference=request.surface_preference,
+            technical_difficulty=request.technical_difficulty,
+            avoid_highways=request.avoid_highways,
+            avoid_primary=request.avoid_primary,
+            avoid_trunk=request.avoid_trunk,
+            max_detours=request.max_detours,
+            detour_radius_km=request.detour_radius_km,
+            trip_duration_hours=request.trip_duration_hours,
+            trip_distance_km=request.trip_distance_km,
+            include_pois=request.include_pois,
+            include_dirt_segments=request.include_dirt_segments,
+            output_format=request.output_format
+        )
+        
+        # Plan enhanced routes
+        planning_result = await enhanced_planner.plan_enhanced_routes(plan_request)
+        
+        # Convert RouteOption objects to dicts for response
+        route_options_dict = []
+        for route_option in planning_result['route_options']:
+            route_dict = {
+                'route_id': route_option.route_id,
+                'name': route_option.name,
+                'route_data': route_option.route_data,
+                'distance_m': route_option.distance_m,
+                'duration_s': route_option.duration_s,
+                'ascent_m': route_option.ascent_m,
+                'descent_m': route_option.descent_m,
+                'off_pavement_pct': route_option.off_pavement_pct,
+                'surface_mix': route_option.surface_mix,
+                'road_class_mix': route_option.road_class_mix,
+                'confidence': route_option.confidence,
+                'flags': route_option.flags,
+                'detours': route_option.detours,
+                'diagnostics': route_option.diagnostics
+            }
+            route_options_dict.append(route_dict)
+        
+        # Record successful request
+        rate_limiter.record_request()
+        
+        # Add background task for usage analytics
+        background_tasks.add_task(
+            log_advanced_route_request, 
+            request, 
+            planning_result
+        )
+        
+        return AdvancedRouteResponse(
+            route_options=route_options_dict,
+            diagnostics=planning_result['diagnostics'],
+            stats=planning_result['stats'],
+            generated_at=datetime.now()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Advanced route calculation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Advanced route calculation failed: {str(e)}")
+
 # Enhanced Route Planning Endpoints
 @api_router.post("/route/enhanced", response_model=EnhancedRouteResponse)
 async def calculate_enhanced_route(
