@@ -557,6 +557,7 @@ class DualsportMapsTester:
             self.test_place_search(),
             self.test_legacy_route_calculation(),
             self.test_enhanced_route_calculation(),
+            self.test_advanced_route_calculation(),
             self.test_invalid_requests(),
             self.test_legacy_endpoints()
         ]
