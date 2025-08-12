@@ -11,15 +11,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Custom icons for start and end points
-const createCustomIcon = (color, text) => {
+// Custom icons for waypoints
+const createCustomIcon = (color, text, size = 32) => {
   return L.divIcon({
     className: 'custom-div-icon',
     html: `
       <div style="
         background-color: ${color};
-        width: 32px;
-        height: 32px;
+        width: ${size}px;
+        height: ${size}px;
         border-radius: 50%;
         border: 3px solid white;
         display: flex;
@@ -27,12 +27,95 @@ const createCustomIcon = (color, text) => {
         justify-content: center;
         font-weight: bold;
         color: white;
-        font-size: 12px;
+        font-size: ${Math.floor(size * 0.35)}px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       ">${text}</div>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+};
+
+// Custom icons for POIs
+const createPOIIcon = (type, color = '#f97316') => {
+  const icons = {
+    viewpoint: '📷',
+    peak: '⛰️',
+    fuel: '⛽',
+    restaurant: '🍽️',
+    campsite: '🏕️',
+    information: 'ℹ️',
+    other: '📍'
+  };
+  
+  const emoji = icons[type] || icons.other;
+  
+  return L.divIcon({
+    className: 'poi-div-icon',
+    html: `
+      <div style="
+        background-color: ${color};
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2px solid white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        position: relative;
+      ">
+        <div style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));">${emoji}</div>
+        <div style="
+          position: absolute;
+          bottom: -2px;
+          right: -2px;
+          width: 8px;
+          height: 8px;
+          background-color: #16a34a;
+          border: 1px solid white;
+          border-radius: 50%;
+        "></div>
+      </div>
+    `,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+};
+
+// Custom icons for dirt segments
+const createDirtIcon = (surface) => {
+  const colors = {
+    gravel: '#8b5a00',
+    dirt: '#92400e',
+    sand: '#fbbf24',
+    compacted: '#6b7280',
+    default: '#78716c'
+  };
+  
+  const color = colors[surface] || colors.default;
+  
+  return L.divIcon({
+    className: 'dirt-div-icon',
+    html: `
+      <div style="
+        background-color: ${color};
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+        font-size: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      ">🏍️</div>
+    `,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 };
 
