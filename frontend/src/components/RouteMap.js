@@ -148,7 +148,7 @@ const RouteMap = ({ routeData, waypoints = [], className = "" }) => {
           </svg>
         </div>
         <h3 className="text-lg font-semibold text-white mb-2">Route Preview</h3>
-        <p className="text-gray-400">Calculate a route to see the map visualization</p>
+        <p className="text-gray-400">Calculate a route to see the map visualization with POIs and dirt segments</p>
       </div>
     );
   }
@@ -170,7 +170,7 @@ const RouteMap = ({ routeData, waypoints = [], className = "" }) => {
   }
 
   // Process waypoints for markers
-  const markers = waypoints
+  const waypointMarkers = waypoints
     .filter(wp => wp.coordinates && wp.coordinates.latitude && wp.coordinates.longitude)
     .map((wp, index) => ({
       position: [wp.coordinates.latitude, wp.coordinates.longitude],
@@ -178,6 +178,28 @@ const RouteMap = ({ routeData, waypoints = [], className = "" }) => {
       isStart: index === 0,
       isEnd: index === waypoints.length - 1,
     }));
+
+  // Process POIs for markers
+  const poiMarkers = routeData.enhancements?.pois?.map((poi, index) => ({
+    position: [poi.coordinates.latitude, poi.coordinates.longitude],
+    name: poi.name,
+    type: poi.type,
+    description: `${poi.type.charAt(0).toUpperCase() + poi.type.slice(1)} • ${poi.name}`
+  })) || [];
+
+  // Process dirt segments for markers
+  const dirtMarkers = routeData.enhancements?.dirt_segments?.slice(0, 5).map((segment, index) => {
+    // Use first coordinate of the segment
+    const firstCoord = segment.coordinates?.[0];
+    if (!firstCoord) return null;
+    
+    return {
+      position: [firstCoord.latitude, firstCoord.longitude],
+      name: segment.name,
+      surface: segment.surface,
+      description: `${segment.surface.charAt(0).toUpperCase() + segment.surface.slice(1)} Track • ${segment.name}`
+    };
+  }).filter(Boolean) || [];
 
   const center = routeCoordinates.length > 0 
     ? routeCoordinates[Math.floor(routeCoordinates.length / 2)]
@@ -188,7 +210,7 @@ const RouteMap = ({ routeData, waypoints = [], className = "" }) => {
       <div className="p-4 border-b border-slate-700">
         <h3 className="text-lg font-semibold text-white mb-1">Route Preview</h3>
         <p className="text-gray-400 text-sm">
-          Interactive map showing your adventure motorcycle route
+          Interactive map showing your dualsport route with POIs and dirt segments
         </p>
       </div>
       
@@ -206,33 +228,34 @@ const RouteMap = ({ routeData, waypoints = [], className = "" }) => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
-          {/* Route line */}
+          {/* Route line with enhanced styling */}
           {routeCoordinates.length > 0 && (
             <Polyline
               positions={routeCoordinates}
               pathOptions={{
                 color: '#f97316',
-                weight: 4,
-                opacity: 0.8,
+                weight: 5,
+                opacity: 0.9,
                 lineCap: 'round',
-                lineJoin: 'round'
+                lineJoin: 'round',
+                dashArray: '0, 10'
               }}
             />
           )}
           
           {/* Waypoint markers */}
-          {markers.map((marker, index) => (
+          {waypointMarkers.map((marker, index) => (
             <Marker
-              key={index}
+              key={`waypoint-${index}`}
               position={marker.position}
               icon={marker.isStart ? startIcon : marker.isEnd ? endIcon : waypointIcon}
             >
               <Popup>
                 <div className="text-sm">
-                  <div className="font-semibold">
-                    {marker.isStart ? 'Start' : marker.isEnd ? 'End' : `Waypoint ${index}`}
+                  <div className="font-semibold text-gray-800">
+                    {marker.isStart ? '🚩 Start' : marker.isEnd ? '🏁 End' : `📍 Waypoint ${index}`}
                   </div>
-                  <div className="text-gray-600">{marker.label}</div>
+                  <div className="text-gray-600 mt-1">{marker.label}</div>
                   <div className="text-xs text-gray-500 mt-1">
                     {marker.position[0].toFixed(4)}, {marker.position[1].toFixed(4)}
                   </div>
@@ -241,34 +264,77 @@ const RouteMap = ({ routeData, waypoints = [], className = "" }) => {
             </Marker>
           ))}
           
-          {/* Fit bounds to route */}
+          {/* POI markers */}
+          {poiMarkers.map((poi, index) => (
+            <Marker
+              key={`poi-${index}`}
+              position={poi.position}
+              icon={createPOIIcon(poi.type, '#3b82f6')}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold text-gray-800">
+                    📍 {poi.name}
+                  </div>
+                  <div className="text-gray-600 mt-1 capitalize">{poi.type}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Point of Interest
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+          
+          {/* Dirt segment markers */}
+          {dirtMarkers.map((dirt, index) => (
+            <Marker
+              key={`dirt-${index}`}
+              position={dirt.position}
+              icon={createDirtIcon(dirt.surface)}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold text-gray-800">
+                    🏍️ {dirt.name}
+                  </div>
+                  <div className="text-gray-600 mt-1 capitalize">{dirt.surface} Surface</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Dirt Segment
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+          
+          {/* Fit bounds to route and markers */}
           {bounds.length > 0 && <FitBounds bounds={bounds} />}
         </MapContainer>
       </div>
       
-      {routeCoordinates.length > 0 && (
-        <div className="p-4 bg-slate-700 border-t border-slate-600">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-gray-300">Start</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                <span className="text-gray-300">Route</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <span className="text-gray-300">End</span>
-              </div>
-            </div>
-            <div className="text-gray-400">
-              {routeCoordinates.length} route points
-            </div>
+      {/* Enhanced legend */}
+      <div className="p-4 bg-slate-700 border-t border-slate-600">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span className="text-gray-300">Start</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+            <span className="text-gray-300">Route</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+            <span className="text-gray-300">POIs ({poiMarkers.length})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-amber-600 rounded-full"></div>
+            <span className="text-gray-300">Dirt ({dirtMarkers.length})</span>
           </div>
         </div>
-      )}
+        <div className="text-xs text-gray-400 mt-2">
+          {routeCoordinates.length} route points • Click markers for details
+        </div>
+      </div>
     </div>
   );
 };
