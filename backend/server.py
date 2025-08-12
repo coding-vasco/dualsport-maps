@@ -122,19 +122,7 @@ class AdventureMotoProfile:
     ) -> Dict[str, Any]:
         
         options = {
-            "avoid_features": [],
-            "avoid_borders": "none",
-            "profile_params": {
-                "weightings": {
-                    "steepness_difficulty": 2,
-                    "green": 0.5,
-                    "quiet": 0.8
-                },
-                "restrictions": {
-                    "gradient": 15,  # Maximum gradient in %
-                    "track_type": 5   # Allows most track types
-                }
-            }
+            "avoid_features": []
         }
         
         # Configure highway avoidance based on preferences
@@ -143,14 +131,6 @@ class AdventureMotoProfile:
         if avoid_trunk:
             options["avoid_features"].append("tollways")  # Often includes major trunk roads
             
-        # Surface preferences implementation
-        surface_config = self._get_surface_configuration(surface_preference)
-        options["profile_params"]["surface_penalties"] = surface_config
-        
-        # Technical difficulty adjustments
-        difficulty_config = self._get_difficulty_configuration(technical_difficulty)
-        options["profile_params"].update(difficulty_config)
-        
         return options
     
     def _get_surface_configuration(self, preference: str) -> Dict[str, float]:
