@@ -33,6 +33,20 @@ db = client[os.environ['DB_NAME']]
 # OpenRouteService setup
 OPENROUTE_API_KEY = os.environ.get('OPENROUTE_API_KEY')
 
+# Enhanced routing module API keys
+MAPBOX_TOKEN = os.environ.get('MAPBOX_TOKEN')
+MAPILLARY_TOKEN = os.environ.get('MAPILLARY_TOKEN') 
+WIKILOC_TOKEN = os.environ.get('WIKILOC_TOKEN')
+
+# Feature flags for enhanced modules
+FEATURE_FLAGS = {
+    'FEATURE_IMAGERY_VALIDATION': bool(MAPILLARY_TOKEN),
+    'FEATURE_POPULARITY_CONNECTORS': bool(WIKILOC_TOKEN),
+    'FEATURE_DEM_ANALYSIS': bool(MAPBOX_TOKEN),
+    'FEATURE_PARTNER_REVER': False,
+    'FEATURE_DETOUR_LOOPS': True
+}
+
 # Rate Limiter for ORS API (2000 requests/day limit)
 class RateLimiter:
     def __init__(self, daily_limit: int = 2000, minute_limit: int = 40):
