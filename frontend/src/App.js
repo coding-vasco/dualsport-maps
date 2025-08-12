@@ -104,14 +104,19 @@ function App() {
       const validWaypoints = waypoints.filter(wp => 
         wp.coordinates && 
         wp.coordinates.latitude !== undefined && 
-        wp.coordinates.longitude !== undefined
+        wp.coordinates.longitude !== undefined &&
+        !isNaN(wp.coordinates.latitude) && 
+        !isNaN(wp.coordinates.longitude)
       );
+      
+      console.log('Valid waypoints:', validWaypoints);
       
       if (validWaypoints.length < 2) {
         throw new Error("At least 2 valid waypoints are required. Please search and select places for your route.");
       }
 
       const coordinates = validWaypoints.map(wp => wp.coordinates);
+      console.log('Route coordinates:', coordinates);
 
       let requestData;
       let endpoint;
@@ -153,16 +158,32 @@ function App() {
         endpoint = `${API}/route`;
       }
 
-      const response = await axios.post(endpoint, requestData);
+      console.log('Sending request to:', endpoint);
+      console.log('Request data:', requestData);
+
+      const response = await axios.post(endpoint, requestData, {
+        timeout: 60000, // 60 second timeout for enhanced routing
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('Route response received:', response.data);
       setRouteData(response.data);
       await fetchRateLimitStatus();
       
     } catch (e) {
       console.error("Route calculation failed:", e);
-      if (e.response?.status === 429) {
+      if (e.code === 'ECONNABORTED') {
+        setError("Route calculation timed out. This may be due to complex route requirements. Try reducing the number of detours or using legacy routing.");
+      } else if (e.response?.status === 429) {
         setError("Rate limit exceeded. Please wait before making another request.");
+      } else if (e.response?.status === 422) {
+        setError(`Invalid request: ${e.response?.data?.detail || "Please check your route parameters."}`);
+      } else if (e.response?.status === 500) {
+        setError(`Server error: ${e.response?.data?.detail || "Please try again or use legacy routing."}`);
       } else {
-        setError(e.response?.data?.detail || e.message || "Route calculation failed");
+        setError(e.response?.data?.detail || e.message || "Route calculation failed. Please try again.");
       }
     } finally {
       setLoading(false);
