@@ -482,6 +482,20 @@ class DualsportMapsTester:
                     "detour_radius_km": 25  # Exceeds limit of 20
                 },
                 "expected_status": 422  # Validation error
+            },
+            {
+                "name": "Invalid Advanced Route Parameters",
+                "endpoint": "route/advanced",
+                "method": "POST",
+                "payload": {
+                    "coordinates": [
+                        {"longitude": -122.4194, "latitude": 37.7749},
+                        {"longitude": -118.2437, "latitude": 34.0522}
+                    ],
+                    "max_detours": 15,  # Exceeds limit of 10
+                    "detour_radius_km": 25  # Exceeds limit of 20
+                },
+                "expected_status": 422  # Validation error
             }
         ]
         
