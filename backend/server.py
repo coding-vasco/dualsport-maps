@@ -438,6 +438,7 @@ api_router = APIRouter(prefix="/api")
 ors_client = None
 rate_limiter = None
 route_enhancer = None
+enhanced_planner = None
 
 # Helper functions
 def convert_to_gpx(route_data: Dict[str, Any], route_name: str = "Dualsport Route") -> str:
