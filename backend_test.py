@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 class DualsportMapsTester:
-    def __init__(self, base_url="https://7971830f-0da5-4d30-93fa-9fc16aee00a4.preview.emergentagent.com"):
+    def __init__(self, base_url="https://trail-discovery-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
