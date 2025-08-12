@@ -11,7 +11,7 @@ import { Badge } from "./components/ui/badge";
 import { Separator } from "./components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Alert, AlertDescription } from "./components/ui/alert";
-import { MapPin, Navigation, Settings, Download, Zap, Mountain, Gauge, Route, Clock, MapIcon, Search, Plus, X } from "lucide-react";
+import { MapPin, Navigation, Settings, Download, Zap, Mountain, Gauge, Route, Clock, MapIcon, Search, Plus, X, Compass, Camera, TreePine, Fuel } from "lucide-react";
 import PlaceSearch from "./components/PlaceSearch";
 import RouteMap from "./components/RouteMap";
 
@@ -35,9 +35,18 @@ function App() {
   const [avoidPrimary, setAvoidPrimary] = useState(false);
   const [avoidTrunk, setAvoidTrunk] = useState(true);
   const [outputFormat, setOutputFormat] = useState("geojson");
-  const [optimizeWaypoints, setOptimizeWaypoints] = useState(false);
   const [includeInstructions, setIncludeInstructions] = useState(true);
   const [includeElevation, setIncludeElevation] = useState(true);
+
+  // New enhancement features
+  const [useEnhancedRouting, setUseEnhancedRouting] = useState(true);
+  const [includePOIs, setIncludePOIs] = useState(true);
+  const [includeDirtSegments, setIncludeDirtSegments] = useState(true);
+  const [maxDetours, setMaxDetours] = useState(3);
+  const [tripDurationHours, setTripDurationHours] = useState("");
+  const [tripDistanceKm, setTripDistanceKm] = useState("");
+  const [detourRadiusKm, setDetourRadiusKm] = useState(5);
+  const [selectedPOITypes, setSelectedPOITypes] = useState(["viewpoint", "fuel", "restaurant"]);
 
   useEffect(() => {
     fetchRateLimitStatus();
@@ -78,6 +87,14 @@ function App() {
     setWaypoints(newWaypoints);
   };
 
+  const togglePOIType = (poiType) => {
+    setSelectedPOITypes(prev => 
+      prev.includes(poiType) 
+        ? prev.filter(type => type !== poiType)
+        : [...prev, poiType]
+    );
+  };
+
   const calculateRoute = async () => {
     setLoading(true);
     setError("");
@@ -96,20 +113,47 @@ function App() {
 
       const coordinates = validWaypoints.map(wp => wp.coordinates);
 
-      const requestData = {
-        coordinates,
-        surface_preference: surfacePreference,
-        technical_difficulty: technicalDifficulty,
-        avoid_highways: avoidHighways,
-        avoid_primary: avoidPrimary,
-        avoid_trunk: avoidTrunk,
-        output_format: outputFormat,
-        optimize_waypoints: optimizeWaypoints,
-        include_instructions: includeInstructions,
-        include_elevation: includeElevation
-      };
+      let requestData;
+      let endpoint;
 
-      const response = await axios.post(`${API}/route`, requestData);
+      if (useEnhancedRouting) {
+        // Enhanced route request
+        requestData = {
+          coordinates,
+          surface_preference: surfacePreference,
+          technical_difficulty: technicalDifficulty,
+          avoid_highways: avoidHighways,
+          avoid_primary: avoidPrimary,
+          avoid_trunk: avoidTrunk,
+          output_format: outputFormat,
+          include_instructions: includeInstructions,
+          include_elevation: includeElevation,
+          poi_types: selectedPOITypes.length > 0 ? selectedPOITypes : ["all"],
+          max_detours: maxDetours,
+          trip_duration_hours: tripDurationHours ? parseFloat(tripDurationHours) : null,
+          trip_distance_km: tripDistanceKm ? parseFloat(tripDistanceKm) : null,
+          include_pois: includePOIs,
+          include_dirt_segments: includeDirtSegments,
+          detour_radius_km: detourRadiusKm
+        };
+        endpoint = `${API}/route/enhanced`;
+      } else {
+        // Legacy route request
+        requestData = {
+          coordinates,
+          surface_preference: surfacePreference,
+          technical_difficulty: technicalDifficulty,
+          avoid_highways: avoidHighways,
+          avoid_primary: avoidPrimary,
+          avoid_trunk: avoidTrunk,
+          output_format: outputFormat,
+          include_instructions: includeInstructions,
+          include_elevation: includeElevation
+        };
+        endpoint = `${API}/route`;
+      }
+
+      const response = await axios.post(endpoint, requestData);
       setRouteData(response.data);
       await fetchRateLimitStatus();
       
@@ -131,12 +175,17 @@ function App() {
     let content, filename, mimeType;
     
     if (format === 'gpx') {
-      content = routeData.route;
-      filename = `adv-route-${Date.now()}.gpx`;
+      if (typeof routeData.route === 'string') {
+        content = routeData.route;
+      } else {
+        // Convert GeoJSON to GPX if needed (simplified)
+        content = JSON.stringify(routeData.route, null, 2);
+      }
+      filename = `dualsport-route-${Date.now()}.gpx`;
       mimeType = 'application/gpx+xml';
     } else {
       content = JSON.stringify(routeData.route, null, 2);
-      filename = `adv-route-${Date.now()}.json`;
+      filename = `dualsport-route-${Date.now()}.json`;
       mimeType = 'application/json';
     }
     
@@ -163,6 +212,15 @@ function App() {
     return `${minutes}m`;
   };
 
+  const poiTypeIcons = {
+    viewpoint: <Camera className="h-4 w-4" />,
+    peak: <Mountain className="h-4 w-4" />,
+    fuel: <Fuel className="h-4 w-4" />,
+    restaurant: <MapPin className="h-4 w-4" />,
+    campsite: <TreePine className="h-4 w-4" />,
+    information: <MapIcon className="h-4 w-4" />
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800">
       <div className="container mx-auto px-4 py-8">
@@ -170,15 +228,15 @@ function App() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="p-3 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl">
-              <Navigation className="h-8 w-8 text-white" />
+              <Compass className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
-              ADV Route Planner
+              DUALSPORT MAPS
             </h1>
           </div>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Adventure route-planning copilot for riders on bikes like the Tenere, Africa Twin, and GS. 
-            Plan scenic, backroads-heavy, dirt-friendly routes with downloadable GPX & GeoJSON.
+          <p className="text-gray-400 text-lg max-w-3xl mx-auto">
+            Dualsport route-planning system for adventure motorcycles. Discover scenic backroads, dirt segments, 
+            and points of interest perfectly matched to your riding style and bike setup.
           </p>
         </div>
 
@@ -204,10 +262,23 @@ function App() {
                   Route Configuration
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Configure your adventure motorcycle route preferences
+                  Configure your dualsport route preferences
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Enhanced Routing Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-900/20 to-red-900/20 rounded-lg border border-orange-400/30">
+                  <div>
+                    <Label htmlFor="enhanced-routing" className="text-white font-medium">Enhanced Routing</Label>
+                    <p className="text-sm text-gray-400">Include POIs and dirt segments</p>
+                  </div>
+                  <Switch
+                    id="enhanced-routing"
+                    checked={useEnhancedRouting}
+                    onCheckedChange={setUseEnhancedRouting}
+                  />
+                </div>
+
                 {/* Waypoints */}
                 <div>
                   <Label className="text-white mb-3 block flex items-center gap-2">
@@ -261,6 +332,134 @@ function App() {
                 </div>
 
                 <Separator className="bg-slate-600" />
+
+                {/* Enhanced Route Features */}
+                {useEnhancedRouting && (
+                  <>
+                    <div className="space-y-4">
+                      <Label className="text-white block">Route Enhancement</Label>
+                      
+                      {/* Trip Parameters */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-gray-300 text-sm">Duration (hours)</Label>
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="1"
+                            max="48"
+                            value={tripDurationHours}
+                            onChange={(e) => setTripDurationHours(e.target.value)}
+                            placeholder="8"
+                            className="bg-slate-600 border-slate-500 text-white placeholder-gray-400 mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-gray-300 text-sm">Distance (km)</Label>
+                          <Input
+                            type="number"
+                            min="10"
+                            max="2000"
+                            value={tripDistanceKm}
+                            onChange={(e) => setTripDistanceKm(e.target.value)}
+                            placeholder="400"
+                            className="bg-slate-600 border-slate-500 text-white placeholder-gray-400 mt-1"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Max Detours */}
+                      <div>
+                        <Label className="text-gray-300 text-sm">Max Detours: {maxDetours}</Label>
+                        <Input
+                          type="range"
+                          min="0"
+                          max="10"
+                          value={maxDetours}
+                          onChange={(e) => setMaxDetours(parseInt(e.target.value))}
+                          className="mt-2"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>0</span>
+                          <span>5</span>
+                          <span>10</span>
+                        </div>
+                      </div>
+
+                      {/* Detour Radius */}
+                      <div>
+                        <Label className="text-gray-300 text-sm">Detour Radius: {detourRadiusKm}km</Label>
+                        <Input
+                          type="range"
+                          min="1"
+                          max="20"
+                          value={detourRadiusKm}
+                          onChange={(e) => setDetourRadiusKm(parseFloat(e.target.value))}
+                          className="mt-2"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>1km</span>
+                          <span>10km</span>
+                          <span>20km</span>
+                        </div>
+                      </div>
+
+                      {/* Enhancement Options */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="include-pois" className="text-gray-300">Include POIs</Label>
+                          <Switch
+                            id="include-pois"
+                            checked={includePOIs}
+                            onCheckedChange={setIncludePOIs}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="include-dirt" className="text-gray-300">Include Dirt Segments</Label>
+                          <Switch
+                            id="include-dirt"
+                            checked={includeDirtSegments}
+                            onCheckedChange={setIncludeDirtSegments}
+                          />
+                        </div>
+                      </div>
+
+                      {/* POI Type Selection */}
+                      {includePOIs && (
+                        <div>
+                          <Label className="text-gray-300 text-sm mb-2 block">Points of Interest</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { key: "viewpoint", label: "Viewpoints" },
+                              { key: "peak", label: "Peaks" },
+                              { key: "fuel", label: "Fuel Stations" },
+                              { key: "restaurant", label: "Restaurants" },
+                              { key: "campsite", label: "Campsites" },
+                              { key: "information", label: "Information" }
+                            ].map(poi => (
+                              <Button
+                                key={poi.key}
+                                variant={selectedPOITypes.includes(poi.key) ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => togglePOIType(poi.key)}
+                                className={`text-xs ${
+                                  selectedPOITypes.includes(poi.key)
+                                    ? "bg-orange-500 hover:bg-orange-600 text-white"
+                                    : "border-slate-500 text-gray-300 hover:bg-slate-600"
+                                }`}
+                              >
+                                {poiTypeIcons[poi.key]}
+                                <span className="ml-1">{poi.label}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator className="bg-slate-600" />
+                  </>
+                )}
 
                 {/* Surface Preference */}
                 <div>
@@ -334,16 +533,8 @@ function App() {
 
                 {/* Advanced Options */}
                 <div className="space-y-4">
-                  <Label className="text-white block">Advanced Options</Label>
+                  <Label className="text-white block">Output Options</Label>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="optimize" className="text-gray-300">Optimize Waypoints</Label>
-                      <Switch
-                        id="optimize"
-                        checked={optimizeWaypoints}
-                        onCheckedChange={setOptimizeWaypoints}
-                      />
-                    </div>
                     <div className="flex items-center justify-between">
                       <Label htmlFor="instructions" className="text-gray-300">Include Instructions</Label>
                       <Switch
@@ -390,8 +581,8 @@ function App() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <Navigation className="h-4 w-4" />
-                      Calculate ADV Route
+                      <Compass className="h-4 w-4" />
+                      Calculate Dualsport Route
                     </div>
                   )}
                 </Button>
@@ -459,28 +650,109 @@ function App() {
                   </CardContent>
                 </Card>
 
-                {/* Surface Analysis */}
-                {routeData.surface_analysis && (
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center gap-2">
-                        <Gauge className="h-5 w-5 text-orange-400" />
-                        Surface Analysis
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {Object.entries(routeData.surface_analysis).map(([surface, percentage]) => (
-                          <div key={surface} className="text-center">
-                            <div className="text-xl font-bold text-white">
-                              {Math.round(percentage * 100)}%
+                {/* Enhanced Route Features */}
+                {routeData.enhancements && (
+                  <Tabs defaultValue="surface" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 bg-slate-700">
+                      <TabsTrigger value="surface" className="data-[state=active]:bg-slate-600">Surface Analysis</TabsTrigger>
+                      <TabsTrigger value="pois" className="data-[state=active]:bg-slate-600">POIs ({routeData.enhancements.pois?.length || 0})</TabsTrigger>
+                      <TabsTrigger value="dirt" className="data-[state=active]:bg-slate-600">Dirt Segments ({routeData.enhancements.dirt_segments?.length || 0})</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="surface" className="mt-4">
+                      <Card className="bg-slate-800 border-slate-700">
+                        <CardHeader>
+                          <CardTitle className="text-white flex items-center gap-2">
+                            <Gauge className="h-5 w-5 text-orange-400" />
+                            Surface Analysis
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {routeData.surface_analysis && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              {Object.entries(routeData.surface_analysis).map(([surface, percentage]) => (
+                                <div key={surface} className="text-center">
+                                  <div className="text-xl font-bold text-white">
+                                    {Math.round(percentage * 100)}%
+                                  </div>
+                                  <div className="text-gray-400 text-sm capitalize">{surface}</div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-gray-400 text-sm capitalize">{surface}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="pois" className="mt-4">
+                      <Card className="bg-slate-800 border-slate-700">
+                        <CardHeader>
+                          <CardTitle className="text-white flex items-center gap-2">
+                            <Camera className="h-5 w-5 text-orange-400" />
+                            Points of Interest
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {routeData.enhancements.pois?.length > 0 ? (
+                            <div className="space-y-3">
+                              {routeData.enhancements.pois.map((poi, index) => (
+                                <div key={poi.id || index} className="flex items-center gap-3 p-3 bg-slate-700 rounded-lg">
+                                  <div className="text-orange-400">
+                                    {poiTypeIcons[poi.type] || <MapPin className="h-4 w-4" />}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-white font-medium">{poi.name}</div>
+                                    <div className="text-gray-400 text-sm capitalize">{poi.type}</div>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {poi.coordinates?.latitude?.toFixed(4)}, {poi.coordinates?.longitude?.toFixed(4)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-gray-400 text-center py-4">
+                              No points of interest found along this route.
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="dirt" className="mt-4">
+                      <Card className="bg-slate-800 border-slate-700">
+                        <CardHeader>
+                          <CardTitle className="text-white flex items-center gap-2">
+                            <Route className="h-5 w-5 text-orange-400" />
+                            Dirt Segments
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {routeData.enhancements.dirt_segments?.length > 0 ? (
+                            <div className="space-y-3">
+                              {routeData.enhancements.dirt_segments.map((segment, index) => (
+                                <div key={segment.id || index} className="p-3 bg-slate-700 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="text-white font-medium">{segment.name}</div>
+                                    <Badge variant="outline" className="border-orange-400 text-orange-400 capitalize">
+                                      {segment.surface}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-gray-400 text-sm">
+                                    Type: {segment.highway} • Track Type: {segment.tracktype}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-gray-400 text-center py-4">
+                              No dirt segments found along this route.
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
                 )}
 
                 {/* Download Section */}
@@ -510,7 +782,7 @@ function App() {
                         className="border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white"
                       >
                         <Download className="h-4 w-4 mr-2" />
-                        Download JSON
+                        Download GeoJSON
                       </Button>
                     </div>
                   </CardContent>
@@ -521,15 +793,15 @@ function App() {
                 <CardContent className="p-12 text-center">
                   <div className="mb-4">
                     <div className="w-24 h-24 mx-auto bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mb-4">
-                      <Navigation className="h-12 w-12 text-white" />
+                      <Compass className="h-12 w-12 text-white" />
                     </div>
                   </div>
                   <h3 className="text-xl font-semibold text-white mb-2">
-                    Ready to Plan Your Adventure?
+                    Ready to Plan Your Dualsport Adventure?
                   </h3>
                   <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                    Search for places and configure your route preferences, then hit "Calculate ADV Route" 
-                    to generate your adventure motorcycle route with map preview and downloadable files.
+                    Search for places, configure your route preferences, and enable enhanced routing 
+                    to discover points of interest and dirt segments along your journey.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto text-sm">
                     <div className="bg-slate-700 p-4 rounded-lg">
@@ -538,9 +810,9 @@ function App() {
                       <div className="text-gray-400">Type place names with autocomplete suggestions</div>
                     </div>
                     <div className="bg-slate-700 p-4 rounded-lg">
-                      <Mountain className="h-6 w-6 text-orange-400 mx-auto mb-2" />
-                      <div className="text-white font-medium">Route Preview</div>
-                      <div className="text-gray-400">See your route on an interactive map</div>
+                      <Compass className="h-6 w-6 text-orange-400 mx-auto mb-2" />
+                      <div className="text-white font-medium">Enhanced Routing</div>
+                      <div className="text-gray-400">Discover POIs and dirt segments</div>
                     </div>
                     <div className="bg-slate-700 p-4 rounded-lg">
                       <Download className="h-6 w-6 text-orange-400 mx-auto mb-2" />

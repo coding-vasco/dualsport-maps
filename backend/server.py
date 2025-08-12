@@ -17,6 +17,7 @@ import gpxpy
 import gpxpy.gpx
 import json
 import asyncio
+import math
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -107,6 +108,143 @@ class AdvancedORS:
         if self._session and not self._session.is_closed:
             await self._session.aclose()
 
+# Dualsport Route Enhancement System
+class DualsportRouteEnhancer:
+    def __init__(self, ors_client):
+        self.ors_client = ors_client
+        
+    async def find_pois_along_route(self, route_coordinates: List[tuple], radius_km: float = 5.0, poi_types: List[str] = None) -> List[Dict]:
+        """Find points of interest along the route using Overpass API"""
+        if not poi_types:
+            poi_types = ["viewpoint", "peak", "fuel", "restaurant", "campsite", "information"]
+        
+        # Create bounding box from route coordinates
+        lats = [coord[1] for coord in route_coordinates]
+        lons = [coord[0] for coord in route_coordinates]
+        
+        min_lat, max_lat = min(lats) - 0.01, max(lats) + 0.01
+        min_lon, max_lon = min(lons) - 0.01, max(lons) + 0.01
+        
+        # Build Overpass query for POIs
+        overpass_query = f"""
+        [out:json][timeout:25];
+        (
+          node["tourism"="viewpoint"]({min_lat},{min_lon},{max_lat},{max_lon});
+          node["natural"="peak"]({min_lat},{min_lon},{max_lat},{max_lon});
+          node["amenity"="fuel"]({min_lat},{min_lon},{max_lat},{max_lon});
+          node["amenity"="restaurant"]({min_lat},{min_lon},{max_lat},{max_lon});
+          node["tourism"="camp_site"]({min_lat},{min_lon},{max_lat},{max_lon});
+          node["tourism"="information"]({min_lat},{min_lon},{max_lat},{max_lon});
+        );
+        out geom;
+        """
+        
+        try:
+            session = await self.ors_client.get_session()
+            response = await session.post(
+                "https://overpass-api.de/api/interpreter",
+                data=overpass_query,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                pois = []
+                
+                for element in data.get("elements", []):
+                    if element.get("type") == "node":
+                        poi = {
+                            "id": element.get("id"),
+                            "name": element.get("tags", {}).get("name", "Unknown"),
+                            "type": self._determine_poi_type(element.get("tags", {})),
+                            "coordinates": {
+                                "latitude": element.get("lat"),
+                                "longitude": element.get("lon")
+                            },
+                            "tags": element.get("tags", {})
+                        }
+                        pois.append(poi)
+                
+                return pois[:20]  # Limit to 20 POIs
+            
+        except Exception as e:
+            logger.error(f"POI search failed: {e}")
+        
+        return []
+    
+    def _determine_poi_type(self, tags: Dict[str, str]) -> str:
+        """Determine POI type from OSM tags"""
+        if tags.get("tourism") == "viewpoint":
+            return "viewpoint"
+        elif tags.get("natural") == "peak":
+            return "peak"
+        elif tags.get("amenity") == "fuel":
+            return "fuel"
+        elif tags.get("amenity") == "restaurant":
+            return "restaurant"
+        elif tags.get("tourism") == "camp_site":
+            return "campsite"
+        elif tags.get("tourism") == "information":
+            return "information"
+        else:
+            return "other"
+    
+    async def find_dirt_segments(self, route_coordinates: List[tuple], radius_km: float = 2.0) -> List[Dict]:
+        """Find dirt/gravel segments near the route"""
+        
+        # Create bounding box
+        lats = [coord[1] for coord in route_coordinates]
+        lons = [coord[0] for coord in route_coordinates]
+        
+        min_lat, max_lat = min(lats) - 0.01, max(lats) + 0.01
+        min_lon, max_lon = min(lons) - 0.01, max(lons) + 0.01
+        
+        # Overpass query for dirt/gravel tracks
+        overpass_query = f"""
+        [out:json][timeout:25];
+        (
+          way["highway"="track"]["surface"~"gravel|dirt|sand|compacted|fine_gravel|ground"]({min_lat},{min_lon},{max_lat},{max_lon});
+          way["highway"="path"]["surface"~"gravel|dirt|sand|compacted|fine_gravel|ground"]({min_lat},{min_lon},{max_lat},{max_lon});
+          way["highway"="unclassified"]["surface"~"gravel|dirt|sand|compacted|fine_gravel|ground"]({min_lat},{min_lon},{max_lat},{max_lon});
+        );
+        out geom;
+        """
+        
+        try:
+            session = await self.ors_client.get_session()
+            response = await session.post(
+                "https://overpass-api.de/api/interpreter",
+                data=overpass_query,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                segments = []
+                
+                for element in data.get("elements", []):
+                    if element.get("type") == "way" and element.get("geometry"):
+                        segment = {
+                            "id": element.get("id"),
+                            "name": element.get("tags", {}).get("name", f"Dirt Track {element.get('id')}"),
+                            "surface": element.get("tags", {}).get("surface", "unknown"),
+                            "tracktype": element.get("tags", {}).get("tracktype", "unknown"),
+                            "highway": element.get("tags", {}).get("highway", "track"),
+                            "coordinates": [
+                                {"latitude": coord["lat"], "longitude": coord["lon"]} 
+                                for coord in element.get("geometry", [])
+                            ],
+                            "tags": element.get("tags", {})
+                        }
+                        segments.append(segment)
+                
+                return segments[:15]  # Limit to 15 segments
+            
+        except Exception as e:
+            logger.error(f"Dirt segment search failed: {e}")
+        
+        return []
+
 # Adventure Motorcycle Routing Profiles
 class AdventureMotoProfile:
     def __init__(self):
@@ -129,87 +267,6 @@ class AdventureMotoProfile:
         # Most avoid features are not supported, so we keep it minimal
             
         return options
-    
-    def _get_surface_configuration(self, preference: str) -> Dict[str, float]:
-        """Configure surface type penalties based on preference"""
-        configs = {
-            "paved": {
-                "asphalt": 1.0,
-                "concrete": 1.1,
-                "paving_stones": 1.2,
-                "gravel": 2.5,
-                "dirt": 3.0,
-                "grass": 4.0,
-                "sand": 5.0
-            },
-            "mixed": {
-                "asphalt": 1.2,
-                "concrete": 1.3,
-                "gravel": 1.0,
-                "compacted": 1.1,
-                "dirt": 1.5,
-                "grass": 2.5,
-                "sand": 3.0
-            },
-            "gravel": {
-                "gravel": 1.0,
-                "compacted": 1.1,
-                "dirt": 1.3,
-                "asphalt": 1.5,
-                "concrete": 1.6,
-                "grass": 2.0,
-                "sand": 3.0
-            },
-            "dirt": {
-                "dirt": 1.0,
-                "grass": 1.2,
-                "gravel": 1.3,
-                "compacted": 1.1,
-                "asphalt": 2.0,
-                "concrete": 2.1,
-                "sand": 2.5
-            }
-        }
-        return configs.get(preference, configs["mixed"])
-    
-    def _get_difficulty_configuration(self, difficulty: str) -> Dict[str, Any]:
-        """Configure routing for different technical difficulty levels"""
-        configs = {
-            "easy": {
-                "weightings": {
-                    "steepness_difficulty": 1,
-                    "green": 0.3,
-                    "quiet": 1.0
-                },
-                "restrictions": {
-                    "gradient": 8,
-                    "smoothness": 3  # Limits to good/intermediate surfaces
-                }
-            },
-            "moderate": {
-                "weightings": {
-                    "steepness_difficulty": 2,
-                    "green": 0.5,
-                    "quiet": 0.8
-                },
-                "restrictions": {
-                    "gradient": 15,
-                    "smoothness": 5  # Allows bad surfaces
-                }
-            },
-            "difficult": {
-                "weightings": {
-                    "steepness_difficulty": 3,
-                    "green": 0.7,
-                    "quiet": 0.6
-                },
-                "restrictions": {
-                    "gradient": 25,
-                    "smoothness": 7  # Allows very bad surfaces
-                }
-            }
-        }
-        return configs.get(difficulty, configs["moderate"])
 
 # Pydantic Models
 class SurfacePreference(str, Enum):
@@ -227,6 +284,15 @@ class OutputFormat(str, Enum):
     GEOJSON = "geojson"
     JSON = "json"
     GPX = "gpx"
+
+class POIType(str, Enum):
+    VIEWPOINT = "viewpoint"
+    PEAK = "peak"
+    FUEL = "fuel"
+    RESTAURANT = "restaurant"
+    CAMPSITE = "campsite"
+    INFORMATION = "information"
+    ALL = "all"
 
 class Coordinates(BaseModel):
     longitude: float = Field(..., ge=-180, le=180, description="Longitude in decimal degrees")
@@ -255,6 +321,52 @@ class PlaceSearchResult(BaseModel):
     region: Optional[str] = None
     country: Optional[str] = None
 
+class EnhancedRouteRequest(BaseModel):
+    coordinates: List[Coordinates] = Field(..., min_items=2, max_items=50)
+    surface_preference: SurfacePreference = SurfacePreference.MIXED
+    technical_difficulty: TechnicalDifficulty = TechnicalDifficulty.MODERATE
+    avoid_highways: bool = True
+    avoid_primary: bool = False
+    avoid_trunk: bool = True
+    output_format: OutputFormat = OutputFormat.GEOJSON
+    include_instructions: bool = True
+    include_elevation: bool = True
+    
+    # New enhancement features
+    poi_types: List[POIType] = Field(default=[POIType.ALL])
+    max_detours: int = Field(default=3, ge=0, le=10, description="Maximum number of detours for POIs/dirt segments")
+    trip_duration_hours: Optional[float] = Field(default=None, ge=1, le=48, description="Approximate trip duration in hours")
+    trip_distance_km: Optional[float] = Field(default=None, ge=10, le=2000, description="Approximate trip distance in km")
+    include_pois: bool = Field(default=True, description="Include points of interest")
+    include_dirt_segments: bool = Field(default=True, description="Include dirt/gravel segments")
+    detour_radius_km: float = Field(default=5.0, ge=1.0, le=20.0, description="Maximum radius for detours in km")
+    
+    @validator('coordinates')
+    def validate_coordinates_count(cls, v):
+        if len(v) < 2:
+            raise ValueError('At least 2 coordinates are required')
+        if len(v) > 50:
+            raise ValueError('Maximum 50 coordinates allowed')
+        return v
+
+class RouteEnhancement(BaseModel):
+    pois: List[Dict[str, Any]] = []
+    dirt_segments: List[Dict[str, Any]] = []
+    scenic_points: List[Dict[str, Any]] = []
+
+class EnhancedRouteResponse(BaseModel):
+    route: Union[Dict[str, Any], str]  # Can be dict (GeoJSON) or str (GPX)
+    distance: float
+    duration: float
+    elevation_gain: Optional[float] = None
+    elevation_loss: Optional[float] = None
+    surface_analysis: Optional[Dict[str, float]] = None
+    waypoint_count: int
+    format: str
+    generated_at: datetime
+    enhancements: RouteEnhancement
+
+# Legacy models for backward compatibility
 class RouteRequest(BaseModel):
     coordinates: List[Coordinates] = Field(..., min_items=2, max_items=50)
     surface_preference: SurfacePreference = SurfacePreference.MIXED
@@ -297,8 +409,8 @@ class StatusCheckCreate(BaseModel):
 
 # Create the main app without a prefix
 app = FastAPI(
-    title="Adventure Motorcycle Route Planner",
-    description="ADV route-planning copilot for riders on bikes like the Tenere, Africa Twin, and GS",
+    title="DUALSPORT MAPS",
+    description="Dualsport route-planning system for adventure motorcycles. Plan scenic, backroads-heavy routes with points of interest, dirt segments, and downloadable GPX & GeoJSON files.",
     version="1.0.0"
 )
 
@@ -308,16 +420,17 @@ api_router = APIRouter(prefix="/api")
 # Global state for rate limiting and client management
 ors_client = None
 rate_limiter = None
+route_enhancer = None
 
 # Helper functions
-def convert_to_gpx(route_data: Dict[str, Any], route_name: str = "Adventure Route") -> str:
+def convert_to_gpx(route_data: Dict[str, Any], route_name: str = "Dualsport Route") -> str:
     """Convert ORS route data to GPX format"""
     
     # Create GPX object
     gpx = gpxpy.gpx.GPX()
     gpx.name = route_name
-    gpx.description = "Adventure motorcycle route generated by ORS API"
-    gpx.creator = "Adventure Motorcycle Route Planner"
+    gpx.description = "Dualsport motorcycle route generated by DUALSPORT MAPS"
+    gpx.creator = "DUALSPORT MAPS"
     
     # Extract geometry and properties
     geometry = route_data.get("geometry", {})
@@ -455,7 +568,6 @@ async def calculate_motorcycle_route(
     coords: List[tuple],
     options: Dict[str, Any],
     output_format: str,
-    optimize_waypoints: bool,
     include_instructions: bool,
     include_elevation: bool
 ) -> Dict[str, Any]:
@@ -517,7 +629,7 @@ async def calculate_motorcycle_route(
         "surface_analysis": analyze_surface_types(properties)
     }
 
-async def log_route_request(request: RouteRequest, route_result: Dict[str, Any]):
+async def log_route_request(request: Union[RouteRequest, EnhancedRouteRequest], route_result: Dict[str, Any]):
     """Background task to log route requests"""
     try:
         log_data = {
@@ -528,6 +640,17 @@ async def log_route_request(request: RouteRequest, route_result: Dict[str, Any])
             "distance": route_result.get("distance", 0),
             "duration": route_result.get("duration", 0)
         }
+        
+        # Add enhanced route features if available
+        if hasattr(request, 'max_detours'):
+            log_data.update({
+                "max_detours": request.max_detours,
+                "trip_duration_hours": request.trip_duration_hours,
+                "trip_distance_km": request.trip_distance_km,
+                "include_pois": request.include_pois,
+                "include_dirt_segments": request.include_dirt_segments
+            })
+        
         await db.route_logs.insert_one(log_data)
     except Exception as e:
         logger.error(f"Failed to log route request: {e}")
@@ -545,13 +668,110 @@ async def search_places_endpoint(request: PlaceSearchRequest):
         logger.error(f"Place search failed: {e}")
         raise HTTPException(status_code=500, detail="Place search failed")
 
-# ADV Route Planning Endpoints
+# Enhanced Route Planning Endpoints
+@api_router.post("/route/enhanced", response_model=EnhancedRouteResponse)
+async def calculate_enhanced_route(
+    request: EnhancedRouteRequest,
+    background_tasks: BackgroundTasks
+):
+    """Calculate enhanced dualsport route with POIs and dirt segments"""
+    
+    # Rate limiting check
+    if not rate_limiter.can_make_request():
+        wait_time = rate_limiter.time_until_next_request()
+        if wait_time:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Try again in {wait_time:.0f} seconds."
+            )
+    
+    try:
+        # Convert coordinates to ORS format
+        coords = [(coord.longitude, coord.latitude) for coord in request.coordinates]
+        
+        # Get profile configuration
+        profile_manager = AdventureMotoProfile()
+        profile_options = profile_manager.get_profile_options(
+            surface_preference=request.surface_preference,
+            avoid_highways=request.avoid_highways,
+            avoid_primary=request.avoid_primary,
+            avoid_trunk=request.avoid_trunk,
+            technical_difficulty=request.technical_difficulty
+        )
+        
+        # Calculate base route
+        route_result = await calculate_motorcycle_route(
+            coords=coords,
+            options=profile_options,
+            output_format=request.output_format,
+            include_instructions=request.include_instructions,
+            include_elevation=request.include_elevation
+        )
+        
+        # Initialize enhancements
+        enhancements = RouteEnhancement()
+        
+        # Extract route coordinates for enhancement searches
+        if route_result.get("route") and isinstance(route_result["route"], dict):
+            route_features = route_result["route"].get("features", [])
+            if route_features:
+                route_geometry = route_features[0].get("geometry", {})
+                if route_geometry.get("type") == "LineString":
+                    route_coordinates = route_geometry.get("coordinates", [])
+                    
+                    # Find POIs along route
+                    if request.include_pois and request.max_detours > 0:
+                        poi_types = [poi.value for poi in request.poi_types if poi != POIType.ALL]
+                        if POIType.ALL in request.poi_types:
+                            poi_types = ["viewpoint", "peak", "fuel", "restaurant", "campsite", "information"]
+                        
+                        pois = await route_enhancer.find_pois_along_route(
+                            route_coordinates, 
+                            request.detour_radius_km,
+                            poi_types
+                        )
+                        enhancements.pois = pois[:request.max_detours]
+                    
+                    # Find dirt segments along route
+                    if request.include_dirt_segments and request.max_detours > 0:
+                        dirt_segments = await route_enhancer.find_dirt_segments(
+                            route_coordinates,
+                            request.detour_radius_km
+                        )
+                        enhancements.dirt_segments = dirt_segments[:request.max_detours]
+        
+        # Record successful request
+        rate_limiter.record_request()
+        
+        # Add background task for usage analytics
+        background_tasks.add_task(log_route_request, request, route_result)
+        
+        return EnhancedRouteResponse(
+            route=route_result["route"],
+            distance=route_result["distance"],
+            duration=route_result["duration"],
+            elevation_gain=route_result.get("elevation_gain"),
+            elevation_loss=route_result.get("elevation_loss"),
+            surface_analysis=route_result.get("surface_analysis"),
+            waypoint_count=len(request.coordinates),
+            format=request.output_format,
+            generated_at=datetime.now(),
+            enhancements=enhancements
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enhanced route calculation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Enhanced route calculation failed: {str(e)}")
+
+# Legacy route endpoint for backward compatibility
 @api_router.post("/route", response_model=RouteResponse)
 async def calculate_route(
     request: RouteRequest,
     background_tasks: BackgroundTasks
 ):
-    """Calculate adventure motorcycle route with custom preferences"""
+    """Calculate basic dualsport route (legacy endpoint)"""
     
     # Rate limiting check
     if not rate_limiter.can_make_request():
@@ -581,7 +801,6 @@ async def calculate_route(
             coords=coords,
             options=profile_options,
             output_format=request.output_format,
-            optimize_waypoints=request.optimize_waypoints,
             include_instructions=request.include_instructions,
             include_elevation=request.include_elevation
         )
@@ -624,7 +843,7 @@ async def get_rate_limit_status():
 # Legacy endpoints for existing functionality
 @api_router.get("/")
 async def root():
-    return {"message": "Adventure Motorcycle Route Planner API"}
+    return {"message": "DUALSPORT MAPS API - Adventure motorcycle route planning"}
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
@@ -652,17 +871,18 @@ app.add_middleware(
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelevel)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_event():
-    global ors_client, rate_limiter
+    global ors_client, rate_limiter, route_enhancer
     if OPENROUTE_API_KEY:
         ors_client = AdvancedORS(OPENROUTE_API_KEY)
         rate_limiter = RateLimiter()
-        logger.info("OpenRouteService client initialized")
+        route_enhancer = DualsportRouteEnhancer(ors_client)
+        logger.info("DUALSPORT MAPS service initialized")
     else:
         logger.error("OPENROUTE_API_KEY not found in environment variables")
 
