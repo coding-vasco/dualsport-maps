@@ -492,7 +492,6 @@ async def calculate_motorcycle_route(
         "instructions": include_instructions,
         "elevation": include_elevation,
         "extra_info": ["surface", "waytype", "steepness"] if include_elevation else ["surface", "waytype"],
-        "optimize_waypoints": optimize_waypoints,
         "options": options
     }
     
