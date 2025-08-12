@@ -11,7 +11,9 @@ import { Badge } from "./components/ui/badge";
 import { Separator } from "./components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Alert, AlertDescription } from "./components/ui/alert";
-import { MapPin, Navigation, Settings, Download, Zap, Mountain, Gauge, Route, Clock, MapIcon } from "lucide-react";
+import { MapPin, Navigation, Settings, Download, Zap, Mountain, Gauge, Route, Clock, MapIcon, Search, Plus, X } from "lucide-react";
+import PlaceSearch from "./components/PlaceSearch";
+import RouteMap from "./components/RouteMap";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -24,8 +26,8 @@ function App() {
   
   // Route form state
   const [waypoints, setWaypoints] = useState([
-    { latitude: "", longitude: "" },
-    { latitude: "", longitude: "" }
+    { place: null, coordinates: null, label: "" },
+    { place: null, coordinates: null, label: "" }
   ]);
   const [surfacePreference, setSurfacePreference] = useState("mixed");
   const [technicalDifficulty, setTechnicalDifficulty] = useState("moderate");
@@ -52,7 +54,7 @@ function App() {
 
   const addWaypoint = () => {
     if (waypoints.length < 50) {
-      setWaypoints([...waypoints, { latitude: "", longitude: "" }]);
+      setWaypoints([...waypoints, { place: null, coordinates: null, label: "" }]);
     }
   };
 
@@ -62,9 +64,17 @@ function App() {
     }
   };
 
-  const updateWaypoint = (index, field, value) => {
+  const updateWaypoint = (index, selectedPlace) => {
     const newWaypoints = [...waypoints];
-    newWaypoints[index][field] = value;
+    if (selectedPlace) {
+      newWaypoints[index] = {
+        place: selectedPlace,
+        coordinates: selectedPlace.coordinates,
+        label: selectedPlace.label
+      };
+    } else {
+      newWaypoints[index] = { place: null, coordinates: null, label: "" };
+    }
     setWaypoints(newWaypoints);
   };
 
@@ -75,18 +85,16 @@ function App() {
     try {
       // Validate waypoints
       const validWaypoints = waypoints.filter(wp => 
-        wp.latitude !== "" && wp.longitude !== "" && 
-        !isNaN(parseFloat(wp.latitude)) && !isNaN(parseFloat(wp.longitude))
+        wp.coordinates && 
+        wp.coordinates.latitude !== undefined && 
+        wp.coordinates.longitude !== undefined
       );
       
       if (validWaypoints.length < 2) {
-        throw new Error("At least 2 valid waypoints are required");
+        throw new Error("At least 2 valid waypoints are required. Please search and select places for your route.");
       }
 
-      const coordinates = validWaypoints.map(wp => ({
-        latitude: parseFloat(wp.latitude),
-        longitude: parseFloat(wp.longitude)
-      }));
+      const coordinates = validWaypoints.map(wp => wp.coordinates);
 
       const requestData = {
         coordinates,
@@ -188,7 +196,7 @@ function App() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Route Configuration Panel */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
             <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
@@ -210,7 +218,7 @@ function App() {
                     {waypoints.map((waypoint, index) => (
                       <Card key={index} className="bg-slate-700 border-slate-600">
                         <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-3">
                             <Badge variant="outline" className="border-orange-400 text-orange-400">
                               {index === 0 ? 'Start' : index === waypoints.length - 1 ? 'End' : `Via ${index}`}
                             </Badge>
@@ -221,28 +229,21 @@ function App() {
                                 onClick={() => removeWaypoint(index)}
                                 className="text-red-400 hover:text-red-300 p-1 h-6"
                               >
-                                ×
+                                <X className="h-4 w-4" />
                               </Button>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <Input
-                              type="number"
-                              step="any"
-                              placeholder="Latitude"
-                              value={waypoint.latitude}
-                              onChange={(e) => updateWaypoint(index, 'latitude', e.target.value)}
-                              className="bg-slate-600 border-slate-500 text-white placeholder-gray-400"
-                            />
-                            <Input
-                              type="number"
-                              step="any"
-                              placeholder="Longitude"
-                              value={waypoint.longitude}
-                              onChange={(e) => updateWaypoint(index, 'longitude', e.target.value)}
-                              className="bg-slate-600 border-slate-500 text-white placeholder-gray-400"
-                            />
-                          </div>
+                          <PlaceSearch
+                            value={waypoint.place}
+                            onChange={(selectedPlace) => updateWaypoint(index, selectedPlace)}
+                            placeholder={`Search for ${index === 0 ? 'starting' : index === waypoints.length - 1 ? 'ending' : 'waypoint'} location...`}
+                            className="w-full"
+                          />
+                          {waypoint.coordinates && (
+                            <div className="mt-2 text-xs text-gray-400">
+                              {waypoint.coordinates.latitude.toFixed(4)}, {waypoint.coordinates.longitude.toFixed(4)}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -252,6 +253,7 @@ function App() {
                         variant="outline"
                         className="w-full border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
                       >
+                        <Plus className="h-4 w-4 mr-2" />
                         Add Waypoint
                       </Button>
                     )}
@@ -407,6 +409,15 @@ function App() {
               </Alert>
             )}
 
+            {/* Route Map */}
+            <div className="mb-6">
+              <RouteMap 
+                routeData={routeData} 
+                waypoints={waypoints}
+                className="w-full"
+              />
+            </div>
+
             {routeData ? (
               <div className="space-y-6">
                 {/* Route Summary */}
@@ -517,19 +528,19 @@ function App() {
                     Ready to Plan Your Adventure?
                   </h3>
                   <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                    Configure your route preferences and waypoints on the left, then hit "Calculate ADV Route" 
-                    to generate your adventure motorcycle route with downloadable GPX and GeoJSON files.
+                    Search for places and configure your route preferences, then hit "Calculate ADV Route" 
+                    to generate your adventure motorcycle route with map preview and downloadable files.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto text-sm">
                     <div className="bg-slate-700 p-4 rounded-lg">
-                      <Route className="h-6 w-6 text-orange-400 mx-auto mb-2" />
-                      <div className="text-white font-medium">Surface Preferences</div>
-                      <div className="text-gray-400">Choose from paved, mixed, gravel, or dirt focus</div>
+                      <Search className="h-6 w-6 text-orange-400 mx-auto mb-2" />
+                      <div className="text-white font-medium">Place Search</div>
+                      <div className="text-gray-400">Type place names with autocomplete suggestions</div>
                     </div>
                     <div className="bg-slate-700 p-4 rounded-lg">
                       <Mountain className="h-6 w-6 text-orange-400 mx-auto mb-2" />
-                      <div className="text-white font-medium">Technical Difficulty</div>
-                      <div className="text-gray-400">Easy, moderate, or difficult terrain</div>
+                      <div className="text-white font-medium">Route Preview</div>
+                      <div className="text-gray-400">See your route on an interactive map</div>
                     </div>
                     <div className="bg-slate-700 p-4 rounded-lg">
                       <Download className="h-6 w-6 text-orange-400 mx-auto mb-2" />

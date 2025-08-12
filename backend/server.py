@@ -267,6 +267,17 @@ class Coordinates(BaseModel):
             raise ValueError('Latitude must be between -90 and 90')
         return v
 
+class PlaceSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=100)
+    limit: int = Field(default=5, ge=1, le=10)
+
+class PlaceSearchResult(BaseModel):
+    label: str
+    value: str
+    coordinates: Coordinates
+    region: Optional[str] = None
+    country: Optional[str] = None
+
 class RouteRequest(BaseModel):
     coordinates: List[Coordinates] = Field(..., min_items=2, max_items=50)
     surface_preference: SurfacePreference = SurfacePreference.MIXED
@@ -411,6 +422,58 @@ def calculate_elevation_loss(properties: Dict[str, Any]) -> float:
     # Simplified elevation calculation
     return properties.get("descent", 0.0)
 
+async def search_places(query: str, limit: int = 5) -> List[PlaceSearchResult]:
+    """Search for places using OpenRouteService geocoding"""
+    
+    if not rate_limiter.can_make_request():
+        raise HTTPException(status_code=429, detail="Rate limit exceeded for place search")
+    
+    session = await ors_client.get_session()
+    
+    # Prepare geocoding request
+    url = f"{ors_client.base_url}/geocode/search"
+    params = {
+        "api_key": ors_client.api_key,
+        "text": query,
+        "size": limit,
+        "layers": "venue,address,street,neighbourhood,locality,county,macrocounty,region,macroregion,country"
+    }
+    
+    try:
+        response = await session.get(url, params=params)
+        
+        if response.status_code != 200:
+            logger.error(f"Geocoding API error: {response.status_code}")
+            return []
+        
+        result = response.json()
+        rate_limiter.record_request()
+        
+        places = []
+        for feature in result.get("features", []):
+            properties = feature.get("properties", {})
+            geometry = feature.get("geometry", {})
+            
+            if geometry.get("type") == "Point":
+                coords = geometry.get("coordinates", [])
+                if len(coords) >= 2:
+                    places.append(PlaceSearchResult(
+                        label=properties.get("label", "Unknown"),
+                        value=properties.get("gid", ""),
+                        coordinates=Coordinates(
+                            longitude=coords[0],
+                            latitude=coords[1]
+                        ),
+                        region=properties.get("region"),
+                        country=properties.get("country")
+                    ))
+        
+        return places
+        
+    except Exception as e:
+        logger.error(f"Place search failed: {e}")
+        return []
+
 async def calculate_motorcycle_route(
     coords: List[tuple],
     options: Dict[str, Any],
@@ -492,6 +555,19 @@ async def log_route_request(request: RouteRequest, route_result: Dict[str, Any])
         await db.route_logs.insert_one(log_data)
     except Exception as e:
         logger.error(f"Failed to log route request: {e}")
+
+# Geocoding endpoints
+@api_router.post("/places/search", response_model=List[PlaceSearchResult])
+async def search_places_endpoint(request: PlaceSearchRequest):
+    """Search for places by name with autocomplete suggestions"""
+    try:
+        places = await search_places(request.query, request.limit)
+        return places
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Place search failed: {e}")
+        raise HTTPException(status_code=500, detail="Place search failed")
 
 # ADV Route Planning Endpoints
 @api_router.post("/route", response_model=RouteResponse)
@@ -600,7 +676,7 @@ app.add_middleware(
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelevel)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
