@@ -950,11 +950,29 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_event():
-    global ors_client, rate_limiter, route_enhancer
+    global ors_client, rate_limiter, route_enhancer, enhanced_planner
     if OPENROUTE_API_KEY:
         ors_client = AdvancedORS(OPENROUTE_API_KEY)
         rate_limiter = RateLimiter()
         route_enhancer = DualsportRouteEnhancer(ors_client)
+        
+        # Initialize enhanced planner if API tokens are available
+        if MAPBOX_TOKEN or MAPILLARY_TOKEN or WIKILOC_TOKEN:
+            try:
+                enhanced_planner = EnhancedRoutePlanner(
+                    mapbox_token=MAPBOX_TOKEN,
+                    mapillary_token=MAPILLARY_TOKEN,
+                    wikiloc_token=WIKILOC_TOKEN,
+                    feature_flags=FEATURE_FLAGS
+                )
+                logger.info("Enhanced route planner initialized")
+            except Exception as e:
+                logger.warning(f"Enhanced route planner initialization failed: {e}")
+                enhanced_planner = None
+        else:
+            logger.info("Enhanced route planner not initialized - missing API tokens")
+            enhanced_planner = None
+            
         logger.info("DUALSPORT MAPS service initialized")
     else:
         logger.error("OPENROUTE_API_KEY not found in environment variables")
