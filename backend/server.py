@@ -383,6 +383,39 @@ class EnhancedRouteResponse(BaseModel):
     generated_at: datetime
     enhancements: RouteEnhancement
 
+class EnhancedAdvancedRouteRequest(BaseModel):
+    coordinates: List[Coordinates] = Field(..., min_items=2, max_items=50)
+    surface_preference: SurfacePreference = SurfacePreference.MIXED
+    technical_difficulty: TechnicalDifficulty = TechnicalDifficulty.MODERATE
+    avoid_highways: bool = True
+    avoid_primary: bool = False
+    avoid_trunk: bool = True
+    output_format: OutputFormat = OutputFormat.GEOJSON
+    include_instructions: bool = True
+    include_elevation: bool = True
+    
+    # Enhanced routing features
+    max_detours: int = Field(default=3, ge=0, le=10, description="Maximum number of detours for POIs/dirt segments")
+    detour_radius_km: float = Field(default=5.0, ge=1.0, le=20.0, description="Maximum radius for detours in km")
+    trip_duration_hours: Optional[float] = Field(default=None, ge=1, le=48, description="Approximate trip duration in hours")
+    trip_distance_km: Optional[float] = Field(default=None, ge=10, le=2000, description="Approximate trip distance in km")
+    include_pois: bool = Field(default=True, description="Include points of interest")
+    include_dirt_segments: bool = Field(default=True, description="Include dirt/gravel segments")
+    
+    @validator('coordinates')
+    def validate_coordinates_count(cls, v):
+        if len(v) < 2:
+            raise ValueError('At least 2 coordinates are required')
+        if len(v) > 50:
+            raise ValueError('Maximum 50 coordinates allowed')
+        return v
+
+class AdvancedRouteResponse(BaseModel):
+    route_options: List[Dict[str, Any]]
+    diagnostics: Dict[str, Any]
+    stats: Dict[str, Any]
+    generated_at: datetime
+
 # Legacy models for backward compatibility
 class RouteRequest(BaseModel):
     coordinates: List[Coordinates] = Field(..., min_items=2, max_items=50)
