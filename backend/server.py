@@ -276,7 +276,7 @@ class RouteRequest(BaseModel):
         return v
 
 class RouteResponse(BaseModel):
-    route: Dict[str, Any]
+    route: Union[Dict[str, Any], str]  # Can be dict (GeoJSON) or str (GPX)
     distance: float
     duration: float
     elevation_gain: Optional[float] = None
