@@ -208,6 +208,11 @@ class ADVRoutePlannerTester:
                     details = f"- Status: {response.status_code}"
                     if response.status_code == 429:
                         details += " (Rate Limited)"
+                    try:
+                        error_data = response.json()
+                        details += f", Error: {error_data.get('detail', 'Unknown error')}"
+                    except:
+                        details += f", Response: {response.text[:100]}"
                     
                 self.log_test(f"Route Calculation: {test_case['name']}", success, details)
                 if not success:
