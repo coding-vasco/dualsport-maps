@@ -125,11 +125,8 @@ class AdventureMotoProfile:
             "avoid_features": []
         }
         
-        # Configure highway avoidance based on preferences
-        if avoid_highways:
-            options["avoid_features"].append("highways")
-        if avoid_trunk:
-            options["avoid_features"].append("tollways")  # Often includes major trunk roads
+        # Note: cycling-regular profile has limited avoid_features support
+        # Most avoid features are not supported, so we keep it minimal
             
         return options
     
