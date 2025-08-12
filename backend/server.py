@@ -1051,6 +1051,7 @@ async def startup_event():
         if MAPBOX_TOKEN or MAPILLARY_TOKEN or WIKILOC_TOKEN:
             try:
                 enhanced_planner = EnhancedRoutePlanner(
+                    openroute_client=ors_client,
                     mapbox_token=MAPBOX_TOKEN,
                     mapillary_token=MAPILLARY_TOKEN,
                     wikiloc_token=WIKILOC_TOKEN,
