@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for ADV Route Planner
-Tests all API endpoints including place search, route calculation, and rate limiting.
+Backend API Test Suite for DUALSPORT MAPS
+Tests all API endpoints including place search, route calculation, enhanced routing, and rate limiting.
 """
 
 import requests
@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-class ADVRoutePlannerTester:
+class DualsportMapsTester:
     def __init__(self, base_url="https://7971830f-0da5-4d30-93fa-9fc16aee00a4.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
@@ -32,7 +32,7 @@ class ADVRoutePlannerTester:
             print(f"❌ {name} - FAILED {details}")
 
     def test_root_endpoint(self) -> bool:
-        """Test the root API endpoint"""
+        """Test the root API endpoint and verify DUALSPORT MAPS branding"""
         try:
             response = self.session.get(f"{self.api_url}/")
             success = response.status_code == 200
@@ -40,11 +40,17 @@ class ADVRoutePlannerTester:
             if success:
                 data = response.json()
                 success = "message" in data
-                details = f"- Status: {response.status_code}, Message: {data.get('message', 'N/A')}"
+                message = data.get('message', '')
+                # Check for DUALSPORT MAPS branding
+                if "DUALSPORT MAPS" in message:
+                    details = f"- Status: {response.status_code}, Message: {message}"
+                else:
+                    success = False
+                    details = f"- Missing DUALSPORT MAPS branding in message: {message}"
             else:
                 details = f"- Status: {response.status_code}"
                 
-            self.log_test("Root API Endpoint", success, details)
+            self.log_test("Root API Endpoint (DUALSPORT MAPS)", success, details)
             return success
             
         except Exception as e:
@@ -124,8 +130,8 @@ class ADVRoutePlannerTester:
                 
         return all_passed
 
-    def test_route_calculation(self) -> bool:
-        """Test route calculation with different configurations"""
+    def test_legacy_route_calculation(self) -> bool:
+        """Test legacy route calculation endpoint for backward compatibility"""
         
         # Test coordinates: San Francisco to Los Angeles
         test_coordinates = [
@@ -142,20 +148,6 @@ class ADVRoutePlannerTester:
                     "technical_difficulty": "moderate",
                     "avoid_highways": True,
                     "avoid_primary": False,
-                    "avoid_trunk": True,
-                    "output_format": "geojson",
-                    "include_instructions": True,
-                    "include_elevation": True
-                }
-            },
-            {
-                "name": "Gravel Route (Difficult)",
-                "config": {
-                    "coordinates": test_coordinates,
-                    "surface_preference": "gravel",
-                    "technical_difficulty": "difficult",
-                    "avoid_highways": True,
-                    "avoid_primary": True,
                     "avoid_trunk": True,
                     "output_format": "geojson",
                     "include_instructions": True,
@@ -211,12 +203,132 @@ class ADVRoutePlannerTester:
                     except:
                         details += f", Response: {response.text[:100]}"
                     
-                self.log_test(f"Route Calculation: {test_case['name']}", success, details)
+                self.log_test(f"Legacy Route: {test_case['name']}", success, details)
                 if not success:
                     all_passed = False
                     
             except Exception as e:
-                self.log_test(f"Route Calculation: {test_case['name']}", False, f"- Error: {str(e)}")
+                self.log_test(f"Legacy Route: {test_case['name']}", False, f"- Error: {str(e)}")
+                all_passed = False
+                
+        return all_passed
+
+    def test_enhanced_route_calculation(self) -> bool:
+        """Test enhanced route calculation with POIs and dirt segments"""
+        
+        # Test coordinates: San Francisco to Los Angeles
+        test_coordinates = [
+            {"longitude": -122.4194, "latitude": 37.7749},  # San Francisco
+            {"longitude": -118.2437, "latitude": 34.0522}   # Los Angeles
+        ]
+        
+        test_configs = [
+            {
+                "name": "Enhanced Route with POIs",
+                "config": {
+                    "coordinates": test_coordinates,
+                    "surface_preference": "mixed",
+                    "technical_difficulty": "moderate",
+                    "avoid_highways": True,
+                    "avoid_primary": False,
+                    "avoid_trunk": True,
+                    "output_format": "geojson",
+                    "include_instructions": True,
+                    "include_elevation": True,
+                    "poi_types": ["viewpoint", "fuel", "restaurant"],
+                    "max_detours": 3,
+                    "trip_duration_hours": 8.0,
+                    "trip_distance_km": 600.0,
+                    "include_pois": True,
+                    "include_dirt_segments": True,
+                    "detour_radius_km": 5.0
+                }
+            },
+            {
+                "name": "Enhanced Route with All POI Types",
+                "config": {
+                    "coordinates": test_coordinates,
+                    "surface_preference": "gravel",
+                    "technical_difficulty": "difficult",
+                    "avoid_highways": True,
+                    "avoid_primary": True,
+                    "avoid_trunk": True,
+                    "output_format": "geojson",
+                    "include_instructions": True,
+                    "include_elevation": True,
+                    "poi_types": ["viewpoint", "peak", "fuel", "restaurant", "campsite", "information"],
+                    "max_detours": 5,
+                    "include_pois": True,
+                    "include_dirt_segments": True,
+                    "detour_radius_km": 10.0
+                }
+            },
+            {
+                "name": "Enhanced Route GPX Format",
+                "config": {
+                    "coordinates": test_coordinates,
+                    "surface_preference": "mixed",
+                    "technical_difficulty": "moderate",
+                    "avoid_highways": True,
+                    "output_format": "gpx",
+                    "include_instructions": True,
+                    "include_elevation": True,
+                    "poi_types": ["fuel", "restaurant"],
+                    "max_detours": 2,
+                    "include_pois": True,
+                    "include_dirt_segments": False,
+                    "detour_radius_km": 3.0
+                }
+            }
+        ]
+        
+        all_passed = True
+        
+        for test_case in test_configs:
+            try:
+                response = self.session.post(f"{self.api_url}/route/enhanced", json=test_case["config"])
+                success = response.status_code == 200
+                
+                if success:
+                    data = response.json()
+                    required_fields = ['route', 'distance', 'duration', 'waypoint_count', 'format', 'generated_at', 'enhancements']
+                    success = all(field in data for field in required_fields)
+                    
+                    if success:
+                        # Validate route data structure
+                        route_data = data['route']
+                        if test_case["config"]["output_format"] == "geojson":
+                            success = isinstance(route_data, dict) and 'features' in route_data
+                        elif test_case["config"]["output_format"] == "gpx":
+                            success = isinstance(route_data, str) and route_data.startswith('<?xml')
+                        
+                        # Validate enhancements structure
+                        enhancements = data.get('enhancements', {})
+                        if success:
+                            success = 'pois' in enhancements and 'dirt_segments' in enhancements
+                            poi_count = len(enhancements.get('pois', []))
+                            dirt_count = len(enhancements.get('dirt_segments', []))
+                            details = f"- Distance: {data.get('distance', 0):.1f}m, POIs: {poi_count}, Dirt: {dirt_count}"
+                        else:
+                            details = f"- Missing enhancements structure"
+                    else:
+                        details = f"- Missing required fields in response"
+                else:
+                    details = f"- Status: {response.status_code}"
+                    if response.status_code == 429:
+                        details += " (Rate Limited)"
+                    try:
+                        error_data = response.json()
+                        details += f", Error: {error_data.get('detail', 'Unknown error')}"
+                    except:
+                        details += f", Response: {response.text[:100]}"
+                    
+                self.log_test(f"Enhanced Route: {test_case['name']}", success, details)
+                if not success:
+                    all_passed = False
+                    
+            except Exception as e:
+                self.log_test(f"Enhanced Route: {test_case['name']}", False, f"- Error: {str(e)}")
                 all_passed = False
                 
         return all_passed
@@ -249,6 +361,20 @@ class ADVRoutePlannerTester:
                 "payload": {
                     "coordinates": [{"longitude": -122.4194, "latitude": 37.7749}],  # Only one point
                     "surface_preference": "mixed"
+                },
+                "expected_status": 422  # Validation error
+            },
+            {
+                "name": "Invalid Enhanced Route Parameters",
+                "endpoint": "route/enhanced",
+                "method": "POST",
+                "payload": {
+                    "coordinates": [
+                        {"longitude": -122.4194, "latitude": 37.7749},
+                        {"longitude": -118.2437, "latitude": 34.0522}
+                    ],
+                    "max_detours": 15,  # Exceeds limit of 10
+                    "detour_radius_km": 25  # Exceeds limit of 20
                 },
                 "expected_status": 422  # Validation error
             }
@@ -315,7 +441,7 @@ class ADVRoutePlannerTester:
 
     def run_all_tests(self) -> int:
         """Run all tests and return exit code"""
-        print("🚀 Starting ADV Route Planner Backend API Tests")
+        print("🚀 Starting DUALSPORT MAPS Backend API Tests")
         print(f"📍 Testing API at: {self.api_url}")
         print("=" * 60)
         
@@ -324,7 +450,8 @@ class ADVRoutePlannerTester:
             self.test_root_endpoint(),
             self.test_rate_limit_status(),
             self.test_place_search(),
-            self.test_route_calculation(),
+            self.test_legacy_route_calculation(),
+            self.test_enhanced_route_calculation(),
             self.test_invalid_requests(),
             self.test_legacy_endpoints()
         ]
@@ -333,7 +460,7 @@ class ADVRoutePlannerTester:
         print(f"📊 Test Results: {self.tests_passed}/{self.tests_run} tests passed")
         
         if self.tests_passed == self.tests_run:
-            print("🎉 All tests passed! Backend API is working correctly.")
+            print("🎉 All tests passed! DUALSPORT MAPS Backend API is working correctly.")
             return 0
         else:
             failed_tests = self.tests_run - self.tests_passed
@@ -342,7 +469,7 @@ class ADVRoutePlannerTester:
 
 def main():
     """Main test runner"""
-    tester = ADVRoutePlannerTester()
+    tester = DualsportMapsTester()
     return tester.run_all_tests()
 
 if __name__ == "__main__":
