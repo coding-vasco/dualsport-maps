@@ -144,7 +144,6 @@ class ADVRoutePlannerTester:
                     "avoid_primary": False,
                     "avoid_trunk": True,
                     "output_format": "geojson",
-                    "optimize_waypoints": False,
                     "include_instructions": True,
                     "include_elevation": True
                 }
@@ -159,7 +158,6 @@ class ADVRoutePlannerTester:
                     "avoid_primary": True,
                     "avoid_trunk": True,
                     "output_format": "geojson",
-                    "optimize_waypoints": False,
                     "include_instructions": True,
                     "include_elevation": True
                 }
@@ -174,7 +172,6 @@ class ADVRoutePlannerTester:
                     "avoid_primary": False,
                     "avoid_trunk": False,
                     "output_format": "gpx",
-                    "optimize_waypoints": False,
                     "include_instructions": True,
                     "include_elevation": True
                 }
