@@ -15,7 +15,17 @@ import { MapPin, Navigation, Settings, Download, Zap, Mountain, Gauge, Route, Cl
 import PlaceSearch from "./components/PlaceSearch";
 import RouteMap from "./components/RouteMap";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+// Smart backend URL detection
+const getBackendUrl = () => {
+  // If we're on localhost or preview, use local backend
+  if (window.location.hostname === 'localhost' || window.location.port === '3000') {
+    return 'http://localhost:8001';
+  }
+  // Otherwise, use the environment variable (production)
+  return process.env.REACT_APP_BACKEND_URL || 'https://dualsport-maps-backend.onrender.com';
+};
+
+const BACKEND_URL = getBackendUrl();
 const API = `${BACKEND_URL}/api`;
 
 function App() {
