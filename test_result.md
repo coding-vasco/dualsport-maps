@@ -246,8 +246,44 @@ test_plan:
       -agent: "main"
       -comment: "Added render.yaml blueprint, Dockerfile, production configs, deployment guide with API setup instructions. Mapbox token integrated successfully. Ready for Render deployment."
 
+  - task: "Phase 2 - Segment Features Module"
+    implemented: true
+    working: "NA"
+    file: "modules/segment_features.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: "NA"
+      -agent: "main"
+      -comment: "Implemented comprehensive segment feature extraction with curvature analysis, elevation features (DEM integration), environmental features, OSM scoring, composite scores (dirt/scenic/risk), and integration with existing modules. Ready for testing."
+
+  - task: "Phase 2 - Custom Model Builder"
+    implemented: true
+    working: "NA"
+    file: "modules/custom_model_builder.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: "NA"
+      -agent: "main"
+      -comment: "Implemented OpenRouteService custom model builder adapted from GraphHopper concepts. Supports ADV variants (EASY/MIXED/TECH), route weights, avoid features, and model confidence scoring. Includes preset configurations and ORS API export."
+
+  - task: "Phase 2 - Detour Optimizer"
+    implemented: true
+    working: "NA"
+    file: "modules/detour_optimizer.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: "NA"
+      -agent: "main"
+      -comment: "Implemented smart detour selection system with sampling along baseline routes, Overpass candidate discovery, parallel evaluation, constraint optimization, and enhanced route building. Supports multiple detour types and efficiency-based selection."
+
 agent_communication:
   -agent: "main"
-  -message: "✅ DEPLOYMENT READY: Added complete Render deployment configuration with render.yaml blueprint, production settings, and comprehensive DEPLOYMENT.md guide. Mapbox token integrated and tested successfully (DEM analysis now enabled). Ready for: 1) GitHub repo creation, 2) Render deployment, 3) API token collection for Strava/Mapillary, 4) Phase 2 core modules implementation. Backend successfully generating routes with enhanced features."
+  -message: "✅ PHASE 2A CORE MODULES COMPLETE: Successfully implemented all 3 foundational modules for advanced route optimization: 1) segment_features.py - unified per-edge feature extraction with curvature, elevation, environmental, and composite scoring; 2) custom_model_builder.py - OpenRouteService model builder with ADV variants and user weight preferences; 3) detour_optimizer.py - smart detour discovery and selection system. All modules integrate with existing Phase 1 infrastructure and include comprehensive error handling, performance budgets, and diagnostics. Ready for backend testing integration. Total: 3 new core modules, ~2000 lines of production code with advanced ADV routing intelligence."
   -agent: "testing"
   -message: "✅ COMPREHENSIVE BACKEND TESTING COMPLETED. All 7 backend tasks are working correctly. NEW /api/route/advanced endpoint properly implemented with 503 error when enhanced planner unavailable (expected behavior due to missing API tokens). All existing endpoints maintain backward compatibility. Enhanced modules import successfully and integrate properly. Request validation and error handling working correctly. Rate limiting enforced. Environment variables properly configured with graceful degradation. READY FOR PRODUCTION."
