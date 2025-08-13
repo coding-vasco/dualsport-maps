@@ -36,8 +36,12 @@ OPENROUTE_API_KEY = os.environ.get('OPENROUTE_API_KEY')
 # Enhanced routing module API keys
 MAPBOX_TOKEN = os.environ.get('MAPBOX_TOKEN')
 MAPILLARY_TOKEN = os.environ.get('MAPILLARY_TOKEN') 
+MAPILLARY_CLIENT_SECRET = os.environ.get('MAPILLARY_CLIENT_SECRET')
 WIKILOC_TOKEN = os.environ.get('WIKILOC_TOKEN')
 STRAVA_TOKEN = os.environ.get('STRAVA_TOKEN')
+STRAVA_CLIENT_SECRET = os.environ.get('STRAVA_CLIENT_SECRET')
+STRAVA_ACCESS_TOKEN = os.environ.get('STRAVA_ACCESS_TOKEN')
+STRAVA_REFRESH_TOKEN = os.environ.get('STRAVA_REFRESH_TOKEN')
 KOMOOT_TOKEN = os.environ.get('KOMOOT_TOKEN')
 
 # Feature flags for enhanced modules
