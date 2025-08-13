@@ -76,4 +76,4 @@ Thumbs.db
 tmp/
 
 # Popularity tracker database
-/tmp/popularity_cache.db
+/tmp/popularity_cache.dbfrontend/node_modules/.cache/default-development/0.pack
