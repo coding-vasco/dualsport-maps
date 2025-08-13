@@ -36,13 +36,10 @@ services:
   # Frontend Static Site
   - type: static
     name: dualsport-maps-frontend
-    env: node
+    env: static
     region: oregon
-    buildCommand: |
-      cd frontend && 
-      yarn install && 
-      yarn build
-    staticPublishPath: ./frontend/build
+    buildCommand: cd frontend && yarn install && yarn build
+    staticPublishPath: frontend/build
     pullRequestPreviewsEnabled: true
     envVars:
       - key: REACT_APP_BACKEND_URL
@@ -50,9 +47,5 @@ services:
           type: web
           name: dualsport-maps-backend
           property: host
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
 
 databases: []  # Using external MongoDB Atlas for better scaling and cost efficiency
