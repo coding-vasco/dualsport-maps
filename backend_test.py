@@ -630,25 +630,36 @@ class DualsportMapsTester:
             # Test detour candidate creation
             candidate = DetourCandidate(
                 detour_id="test_detour_1",
-                detour_type=DetourType.SCENIC_VIEWPOINT,
-                baseline_km_marker=5.0,
+                detour_type=DetourType.DIRT_SEGMENT,  # Use DIRT_SEGMENT instead of SCENIC_VIEWPOINT
+                start_point=(-105.0178, 39.7392),
+                end_point=(-105.0200, 39.7400),
                 detour_coordinates=[
-                    {'longitude': -105.0178, 'latitude': 39.7392},
-                    {'longitude': -105.0200, 'latitude': 39.7400}
+                    (-105.0178, 39.7392),
+                    (-105.0190, 39.7396),
+                    (-105.0200, 39.7400)
                 ],
-                baseline_distance_km=10.0,
                 detour_distance_km=12.0,
+                detour_duration_min=36.0,
+                baseline_distance_km=10.0,
                 baseline_duration_min=30.0,
-                detour_duration_min=36.0
+                dirt_gain=0.3,
+                scenic_gain=0.2,
+                popularity_gain=0.1,
+                risk_penalty=0.1,
+                objective_gain=0.25,
+                efficiency_ratio=0.125,
+                confidence=0.8,
+                baseline_km_marker=5.0
             )
             
             # Test basic properties
             success = candidate.detour_id == "test_detour_1"
-            success = success and candidate.detour_type == DetourType.SCENIC_VIEWPOINT
+            success = success and candidate.detour_type == DetourType.DIRT_SEGMENT
             success = success and candidate.detour_distance_km > candidate.baseline_distance_km
+            success = success and candidate.dirt_gain > 0
             
             if success:
-                details = f"- Detour: {candidate.detour_distance_km:.1f}km vs baseline {candidate.baseline_distance_km:.1f}km"
+                details = f"- Detour: {candidate.detour_distance_km:.1f}km vs baseline {candidate.baseline_distance_km:.1f}km, Dirt gain: {candidate.dirt_gain:.2f}"
             else:
                 details = f"- Detour candidate creation failed"
                 
