@@ -572,20 +572,29 @@ def calculate_elevation_loss(properties: Dict[str, Any]) -> float:
     return properties.get("descent", 0.0)
 
 async def search_places(query: str, limit: int = 5) -> List[PlaceSearchResult]:
-    """Search for places using OpenRouteService geocoding"""
+    """Search for places using OpenRouteService geocoding with EU/US focus"""
     
     if not rate_limiter.can_make_request():
         raise HTTPException(status_code=429, detail="Rate limit exceeded for place search")
     
     session = await ors_client.get_session()
     
-    # Prepare geocoding request
+    # Define priority countries for EU and US
+    priority_countries = [
+        "US", "ES", "FR", "DE", "IT", "GB", "PT", "NL", "AT", "CH", 
+        "BE", "DK", "SE", "NO", "FI", "IE", "PL", "CZ", "HU", "GR"
+    ]
+    
+    # Prepare enhanced geocoding request
     url = f"{ors_client.base_url}/geocode/search"
     params = {
         "api_key": ors_client.api_key,
         "text": query,
-        "size": limit,
-        "layers": "venue,address,street,neighbourhood,locality,county,macrocounty,region,macroregion,country"
+        "size": min(limit * 2, 20),  # Get more results to filter
+        "layers": "venue,address,neighbourhood,locality,county,region,country",
+        # Focus on populated places for better results
+        "sources": "osm,oa,gn",  # OpenStreetMap, OpenAddresses, GeoNames
+        "boundary.country": ",".join(priority_countries[:10])  # Limit to avoid URL too long
     }
     
     try:
@@ -593,12 +602,23 @@ async def search_places(query: str, limit: int = 5) -> List[PlaceSearchResult]:
         
         if response.status_code != 200:
             logger.error(f"Geocoding API error: {response.status_code}")
-            return []
+            # Fallback request without country filtering
+            fallback_params = {
+                "api_key": ors_client.api_key,
+                "text": query,
+                "size": limit,
+                "layers": "locality,county,region,country"
+            }
+            response = await session.get(url, params=fallback_params)
+            if response.status_code != 200:
+                return []
         
         result = response.json()
         rate_limiter.record_request()
         
         places = []
+        seen_labels = set()  # Avoid duplicates
+        
         for feature in result.get("features", []):
             properties = feature.get("properties", {})
             geometry = feature.get("geometry", {})
@@ -606,18 +626,36 @@ async def search_places(query: str, limit: int = 5) -> List[PlaceSearchResult]:
             if geometry.get("type") == "Point":
                 coords = geometry.get("coordinates", [])
                 if len(coords) >= 2:
-                    places.append(PlaceSearchResult(
-                        label=properties.get("label", "Unknown"),
-                        value=properties.get("gid", ""),
+                    label = properties.get("label", "Unknown")
+                    country_code = properties.get("country_a", "")
+                    
+                    # Skip duplicates
+                    if label in seen_labels:
+                        continue
+                    seen_labels.add(label)
+                    
+                    # Create place result with better formatting
+                    place = PlaceSearchResult(
+                        label=label,
+                        value=properties.get("gid", f"geocode_{len(places)}"),
                         coordinates=Coordinates(
                             longitude=coords[0],
                             latitude=coords[1]
                         ),
                         region=properties.get("region"),
                         country=properties.get("country")
-                    ))
+                    )
+                    
+                    # Prioritize EU/US results
+                    if country_code in priority_countries:
+                        places.insert(0, place)  # Add to front
+                    else:
+                        places.append(place)
+                    
+                    if len(places) >= limit:
+                        break
         
-        return places
+        return places[:limit]
         
     except Exception as e:
         logger.error(f"Place search failed: {e}")
