@@ -19,10 +19,19 @@ const PlaceSearch = ({ value, onChange, placeholder = "Search for a place...", c
 
     setIsLoading(true);
     try {
+      console.log('Searching for:', query, 'API URL:', `${API}/places/search`);
+      
       const response = await axios.post(`${API}/places/search`, {
         query: query,
-        limit: 8
+        limit: 10, // Increased limit
+        focus: {
+          // Prioritize EU and US results
+          regions: ['Europe', 'North America'],
+          countries: ['United States', 'Spain', 'France', 'Germany', 'Italy', 'United Kingdom', 'Portugal', 'Netherlands', 'Austria', 'Switzerland']
+        }
       });
+
+      console.log('Search response:', response.data);
 
       const places = response.data.map(place => ({
         value: place.value,
@@ -35,6 +44,7 @@ const PlaceSearch = ({ value, onChange, placeholder = "Search for a place...", c
       setOptions(places);
     } catch (error) {
       console.error('Place search failed:', error);
+      console.error('Full error details:', error.response?.data || error.message);
       setOptions([]);
     } finally {
       setIsLoading(false);
