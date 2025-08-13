@@ -3,11 +3,24 @@ import Select from 'react-select';
 import { MapPin, Search } from 'lucide-react';
 import axios from 'axios';
 
-const BACKEND_URL =
-  process.env.REACT_APP_BACKEND_URL ||
-  (window.location.hostname === 'localhost'
-    ? 'http://localhost:8001'
-    : 'https://dualsport-maps-backend.onrender.com');
+// Robust backend URL resolver - evaluated at runtime
+const getBackendUrl = () => {
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // Runtime hostname detection
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.port === '3000') {
+      return 'http://localhost:8001';
+    }
+  }
+  
+  return 'https://dualsport-maps-backend.onrender.com';
+};
+
+const BACKEND_URL = getBackendUrl();
 const API = `${BACKEND_URL}/api`;
 
 const PlaceSearch = ({ value, onChange, placeholder = "Search for a place...", className = "" }) => {
