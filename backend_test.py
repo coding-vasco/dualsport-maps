@@ -611,6 +611,7 @@ class DualsportMapsTester:
             sys.path.append('/app/backend')
             from modules.detour_optimizer import DetourOptimizer, DetourConstraints, DetourCandidate, DetourType
             from modules.custom_model_builder import RouteWeights
+            from modules.segment_features import SegmentFeature
             
             # Test detour optimizer initialization (without external dependencies)
             optimizer = DetourOptimizer()
@@ -627,10 +628,42 @@ class DualsportMapsTester:
             # Test route weights
             weights = RouteWeights(dirt=0.6, scenic=0.4, risk=-0.2)
             
+            # Create a minimal segment feature for testing
+            test_feature = SegmentFeature(
+                segment_id="test_seg",
+                coordinates=[(-105.0178, 39.7392), (-105.0200, 39.7400)],
+                length_km=2.0,
+                surface="gravel",
+                surface_score=0.9,
+                tracktype="grade2",
+                tracktype_score=0.8,
+                smoothness="good",
+                smoothness_score=0.9,
+                road_class="track",
+                road_class_score=0.9,
+                curvature_mean=15.0,
+                curvature_p95=25.0,
+                grade_mean_pct=5.0,
+                grade_p95_pct=12.0,
+                pct_over_8_pct=10.0,
+                pct_over_12_pct=5.0,
+                pct_over_16_pct=0.0,
+                coast_distance_km=50.0,
+                green_density=0.4,
+                ridge_score=0.6,
+                popularity_score=0.3,
+                imagery_confidence=0.5,
+                access_flags=[],
+                seasonality_hint="year_round",
+                dirt_score=0.85,
+                scenic_score=0.6,
+                risk_score=0.2
+            )
+            
             # Test detour candidate creation
             candidate = DetourCandidate(
                 detour_id="test_detour_1",
-                detour_type=DetourType.DIRT_SEGMENT,  # Use DIRT_SEGMENT instead of SCENIC_VIEWPOINT
+                detour_type=DetourType.DIRT_SEGMENT,
                 start_point=(-105.0178, 39.7392),
                 end_point=(-105.0200, 39.7400),
                 detour_coordinates=[
@@ -649,7 +682,8 @@ class DualsportMapsTester:
                 objective_gain=0.25,
                 efficiency_ratio=0.125,
                 confidence=0.8,
-                baseline_km_marker=5.0
+                baseline_km_marker=5.0,
+                segment_features=[test_feature]
             )
             
             # Test basic properties
@@ -657,6 +691,7 @@ class DualsportMapsTester:
             success = success and candidate.detour_type == DetourType.DIRT_SEGMENT
             success = success and candidate.detour_distance_km > candidate.baseline_distance_km
             success = success and candidate.dirt_gain > 0
+            success = success and len(candidate.segment_features) == 1
             
             if success:
                 details = f"- Detour: {candidate.detour_distance_km:.1f}km vs baseline {candidate.baseline_distance_km:.1f}km, Dirt gain: {candidate.dirt_gain:.2f}"
