@@ -15,11 +15,24 @@ import { MapPin, Navigation, Settings, Download, Zap, Mountain, Gauge, Route, Cl
 import PlaceSearch from "./components/PlaceSearch";
 import RouteMap from "./components/RouteMap";
 
-const BACKEND_URL =
-  process.env.REACT_APP_BACKEND_URL ||
-  (window.location.hostname === 'localhost'
-    ? 'http://localhost:8001'
-    : 'https://dualsport-maps-backend.onrender.com');
+// Robust backend URL resolver - evaluated at runtime
+const getBackendUrl = () => {
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // Runtime hostname detection
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.port === '3000') {
+      return 'http://localhost:8001';
+    }
+  }
+  
+  return 'https://dualsport-maps-backend.onrender.com';
+};
+
+const BACKEND_URL = getBackendUrl();
 const API = `${BACKEND_URL}/api`;
 
 function App() {
