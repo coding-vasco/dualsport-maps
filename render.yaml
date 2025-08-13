@@ -1,0 +1,58 @@
+services:
+  # Backend FastAPI Service
+  - type: web
+    name: dualsport-maps-backend
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: |
+      cd backend && 
+      pip install --upgrade pip && 
+      pip install -r requirements.txt
+    startCommand: cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: dualsport_maps_prod
+      - key: OPENROUTE_API_KEY
+        sync: false
+      - key: MAPBOX_TOKEN
+        sync: false
+      - key: MAPILLARY_TOKEN
+        sync: false
+      - key: WIKILOC_TOKEN
+        sync: false
+      - key: STRAVA_TOKEN
+        sync: false
+      - key: KOMOOT_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: PYTHON_VERSION
+        value: "3.11"
+    healthCheckPath: /api/
+
+  # Frontend Static Site
+  - type: static
+    name: dualsport-maps-frontend
+    env: node
+    region: oregon
+    buildCommand: |
+      cd frontend && 
+      yarn install && 
+      yarn build
+    staticPublishPath: ./frontend/build
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        fromService:
+          type: web
+          name: dualsport-maps-backend
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases: []  # Using external MongoDB Atlas for better scaling and cost efficiency
