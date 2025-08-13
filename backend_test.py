@@ -936,6 +936,13 @@ class DualsportMapsTester:
             self.test_legacy_route_calculation(),
             self.test_enhanced_route_calculation(),
             self.test_advanced_route_calculation(),
+            self.test_phase2_module_imports(),
+            self.test_phase2_segment_features(),
+            self.test_phase2_custom_model_builder(),
+            self.test_phase2_detour_optimizer(),
+            self.test_phase2_integration_framework(),
+            self.test_phase2_module_dependencies(),
+            self.test_phase2_performance_budgets(),
             self.test_invalid_requests(),
             self.test_legacy_endpoints()
         ]
