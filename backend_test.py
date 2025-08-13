@@ -438,6 +438,370 @@ class DualsportMapsTester:
                 
         return all_passed
 
+    def test_phase2_module_imports(self) -> bool:
+        """Test Phase 2 module imports and basic functionality"""
+        
+        test_cases = [
+            {
+                "name": "Segment Features Module",
+                "module": "modules.segment_features",
+                "classes": ["SegmentFeatureExtractor", "SegmentFeature"]
+            },
+            {
+                "name": "Custom Model Builder",
+                "module": "modules.custom_model_builder", 
+                "classes": ["CustomModelBuilder", "RouteWeights", "AdvVariant"]
+            },
+            {
+                "name": "Detour Optimizer",
+                "module": "modules.detour_optimizer",
+                "classes": ["DetourOptimizer", "DetourConstraints", "DetourCandidate"]
+            },
+            {
+                "name": "Phase 2 Integration",
+                "module": "modules.phase2_integration",
+                "classes": ["Phase2EnhancedPlanner", "Phase2Configuration"]
+            }
+        ]
+        
+        all_passed = True
+        
+        for test_case in test_cases:
+            try:
+                # Test module import
+                import sys
+                import os
+                sys.path.append('/app/backend')
+                
+                module = __import__(test_case["module"], fromlist=test_case["classes"])
+                
+                # Test class imports
+                missing_classes = []
+                for class_name in test_case["classes"]:
+                    if not hasattr(module, class_name):
+                        missing_classes.append(class_name)
+                
+                success = len(missing_classes) == 0
+                
+                if success:
+                    details = f"- All classes imported: {', '.join(test_case['classes'])}"
+                else:
+                    details = f"- Missing classes: {', '.join(missing_classes)}"
+                    
+                self.log_test(f"Phase 2 Import: {test_case['name']}", success, details)
+                if not success:
+                    all_passed = False
+                    
+            except Exception as e:
+                self.log_test(f"Phase 2 Import: {test_case['name']}", False, f"- Error: {str(e)}")
+                all_passed = False
+                
+        return all_passed
+
+    def test_phase2_segment_features(self) -> bool:
+        """Test Segment Features Module functionality"""
+        
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from modules.segment_features import SegmentFeatureExtractor, SegmentFeature
+            
+            # Test extractor initialization
+            extractor = SegmentFeatureExtractor()
+            
+            # Test with sample segment data
+            sample_segments = [
+                {
+                    'segment_id': 'test_seg_1',
+                    'coordinates': [
+                        {'longitude': -105.0178, 'latitude': 39.7392},
+                        {'longitude': -105.0200, 'latitude': 39.7400},
+                        {'longitude': -105.0220, 'latitude': 39.7410}
+                    ],
+                    'tags': {
+                        'highway': 'track',
+                        'surface': 'gravel',
+                        'tracktype': 'grade2'
+                    }
+                }
+            ]
+            
+            # Test basic feature extraction (synchronous parts)
+            coordinates = extractor._extract_coordinates(sample_segments[0])
+            success = len(coordinates) == 3
+            
+            if success:
+                # Test distance calculation
+                length = extractor._calculate_segment_length(coordinates)
+                success = length > 0
+                
+                # Test OSM feature extraction
+                osm_features = extractor._extract_osm_features(sample_segments[0]['tags'])
+                success = success and 'surface_score' in osm_features
+                success = success and osm_features['surface'] == 'gravel'
+                success = success and osm_features['surface_score'] > 0.8  # Gravel should score high
+                
+                details = f"- Length: {length:.3f}km, Surface: {osm_features['surface']} (score: {osm_features['surface_score']:.2f})"
+            else:
+                details = f"- Coordinate extraction failed"
+                
+            self.log_test("Phase 2 Segment Features: Basic Functionality", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Phase 2 Segment Features: Basic Functionality", False, f"- Error: {str(e)}")
+            return False
+
+    def test_phase2_custom_model_builder(self) -> bool:
+        """Test Custom Model Builder functionality"""
+        
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from modules.custom_model_builder import CustomModelBuilder, RouteWeights, AdvVariant
+            
+            # Test model builder initialization
+            builder = CustomModelBuilder()
+            
+            # Test route weights creation
+            weights = RouteWeights(
+                dirt=0.7,
+                scenic=0.5,
+                risk=-0.3,
+                popularity=0.2
+            )
+            
+            # Test model building for different variants
+            variants_tested = []
+            for variant in [AdvVariant.ADV_EASY, AdvVariant.ADV_MIXED, AdvVariant.ADV_TECH]:
+                try:
+                    model_config = builder.build_routing_model(weights, variant)
+                    
+                    # Verify model configuration structure
+                    success = hasattr(model_config, 'base_profile')
+                    success = success and hasattr(model_config, 'avoid_features')
+                    success = success and hasattr(model_config, 'variant')
+                    success = success and hasattr(model_config, 'confidence')
+                    
+                    if success:
+                        variants_tested.append(f"{variant.value}(conf:{model_config.confidence:.2f})")
+                        
+                except Exception as e:
+                    success = False
+                    break
+            
+            if success and len(variants_tested) == 3:
+                details = f"- Built models: {', '.join(variants_tested)}"
+            else:
+                details = f"- Failed to build all variant models"
+                success = False
+                
+            self.log_test("Phase 2 Custom Model Builder: Variant Models", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Phase 2 Custom Model Builder: Variant Models", False, f"- Error: {str(e)}")
+            return False
+
+    def test_phase2_detour_optimizer(self) -> bool:
+        """Test Detour Optimizer initialization and basic functionality"""
+        
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from modules.detour_optimizer import DetourOptimizer, DetourConstraints, DetourCandidate, DetourType
+            from modules.custom_model_builder import RouteWeights
+            
+            # Test detour optimizer initialization (without external dependencies)
+            optimizer = DetourOptimizer()
+            
+            # Test detour constraints creation
+            constraints = DetourConstraints(
+                max_count=3,
+                radius_km=5.0,
+                min_gain=0.05,
+                max_distance_penalty_pct=25.0,
+                max_time_penalty_pct=30.0
+            )
+            
+            # Test route weights
+            weights = RouteWeights(dirt=0.6, scenic=0.4, risk=-0.2)
+            
+            # Test detour candidate creation
+            candidate = DetourCandidate(
+                detour_id="test_detour_1",
+                detour_type=DetourType.SCENIC_VIEWPOINT,
+                baseline_km_marker=5.0,
+                detour_coordinates=[
+                    {'longitude': -105.0178, 'latitude': 39.7392},
+                    {'longitude': -105.0200, 'latitude': 39.7400}
+                ],
+                baseline_distance_km=10.0,
+                detour_distance_km=12.0,
+                baseline_duration_min=30.0,
+                detour_duration_min=36.0
+            )
+            
+            # Test basic properties
+            success = candidate.detour_id == "test_detour_1"
+            success = success and candidate.detour_type == DetourType.SCENIC_VIEWPOINT
+            success = success and candidate.detour_distance_km > candidate.baseline_distance_km
+            
+            if success:
+                details = f"- Detour: {candidate.detour_distance_km:.1f}km vs baseline {candidate.baseline_distance_km:.1f}km"
+            else:
+                details = f"- Detour candidate creation failed"
+                
+            self.log_test("Phase 2 Detour Optimizer: Basic Functionality", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Phase 2 Detour Optimizer: Basic Functionality", False, f"- Error: {str(e)}")
+            return False
+
+    def test_phase2_integration_framework(self) -> bool:
+        """Test Phase 2 Integration Framework"""
+        
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from modules.phase2_integration import Phase2EnhancedPlanner, Phase2Configuration
+            from modules.custom_model_builder import AdvVariant
+            
+            # Test Phase 2 configuration
+            config = Phase2Configuration(
+                enable_segment_features=True,
+                enable_custom_models=True,
+                enable_detour_optimization=True,
+                feature_extraction_budget=8.0,
+                detour_optimization_budget=12.0,
+                max_detours=3,
+                default_variant=AdvVariant.ADV_MIXED
+            )
+            
+            # Verify configuration properties
+            success = config.enable_segment_features == True
+            success = success and config.enable_custom_models == True
+            success = success and config.enable_detour_optimization == True
+            success = success and config.max_detours == 3
+            success = success and config.default_variant == AdvVariant.ADV_MIXED
+            
+            if success:
+                # Test Phase 2 planner initialization (without base planner for now)
+                try:
+                    # This will fail without base_planner, but we can test the class exists
+                    planner_class_exists = Phase2EnhancedPlanner is not None
+                    success = success and planner_class_exists
+                    details = f"- Config valid, Planner class available, Max detours: {config.max_detours}"
+                except Exception:
+                    details = f"- Config valid, but planner initialization requires base planner"
+            else:
+                details = f"- Configuration validation failed"
+                
+            self.log_test("Phase 2 Integration Framework: Configuration", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Phase 2 Integration Framework: Configuration", False, f"- Error: {str(e)}")
+            return False
+
+    def test_phase2_module_dependencies(self) -> bool:
+        """Test Phase 2 module cross-dependencies"""
+        
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            
+            # Test that modules can import each other
+            from modules.segment_features import SegmentFeatureExtractor
+            from modules.custom_model_builder import CustomModelBuilder, RouteWeights, AdvVariant
+            from modules.detour_optimizer import DetourOptimizer
+            from modules.phase2_integration import Phase2EnhancedPlanner, Phase2Configuration
+            
+            # Test that Phase 2 integration can use other modules
+            config = Phase2Configuration()
+            
+            # Test that custom model builder can work with segment features
+            builder = CustomModelBuilder()
+            weights = RouteWeights()
+            
+            # Test model building
+            model = builder.build_routing_model(weights, AdvVariant.ADV_MIXED)
+            
+            success = model is not None
+            success = success and hasattr(model, 'confidence')
+            success = success and model.confidence > 0
+            
+            if success:
+                details = f"- All modules imported, Model confidence: {model.confidence:.2f}"
+            else:
+                details = f"- Module dependency test failed"
+                
+            self.log_test("Phase 2 Module Dependencies: Cross-Integration", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Phase 2 Module Dependencies: Cross-Integration", False, f"- Error: {str(e)}")
+            return False
+
+    def test_phase2_performance_budgets(self) -> bool:
+        """Test Phase 2 performance budget management"""
+        
+        try:
+            import sys
+            import time
+            sys.path.append('/app/backend')
+            from modules.segment_features import SegmentFeatureExtractor
+            from modules.phase2_integration import Phase2Configuration
+            
+            # Test budget configuration
+            config = Phase2Configuration(
+                feature_extraction_budget=2.0,  # Short budget for testing
+                detour_optimization_budget=3.0
+            )
+            
+            # Test that extractor respects budget
+            extractor = SegmentFeatureExtractor()
+            
+            # Create sample segments
+            sample_segments = [
+                {
+                    'segment_id': f'test_seg_{i}',
+                    'coordinates': [
+                        {'longitude': -105.0178 + i*0.001, 'latitude': 39.7392 + i*0.001},
+                        {'longitude': -105.0200 + i*0.001, 'latitude': 39.7400 + i*0.001}
+                    ],
+                    'tags': {'highway': 'track', 'surface': 'gravel'}
+                }
+                for i in range(5)  # 5 segments
+            ]
+            
+            # Test budget timing (synchronous parts only)
+            start_time = time.time()
+            
+            # Test coordinate extraction (should be fast)
+            for segment in sample_segments:
+                coords = extractor._extract_coordinates(segment)
+                length = extractor._calculate_segment_length(coords)
+                osm_features = extractor._extract_osm_features(segment.get('tags', {}))
+            
+            elapsed = time.time() - start_time
+            
+            # Should complete quickly for basic operations
+            success = elapsed < 1.0  # Should be much faster than budget
+            
+            if success:
+                details = f"- Budget: {config.feature_extraction_budget}s, Actual: {elapsed:.3f}s"
+            else:
+                details = f"- Budget exceeded: {elapsed:.3f}s > 1.0s"
+                
+            self.log_test("Phase 2 Performance: Budget Management", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Phase 2 Performance: Budget Management", False, f"- Error: {str(e)}")
+            return False
+
     def test_invalid_requests(self) -> bool:
         """Test error handling with invalid requests"""
         
