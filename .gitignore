@@ -77,3 +77,4 @@ tmp/
 
 # Popularity tracker database
 /tmp/popularity_cache.dbfrontend/node_modules/.cache/default-development/0.pack
+frontend/node_modules/.cache/default-development/0.pack
